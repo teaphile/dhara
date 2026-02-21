@@ -39,6 +39,8 @@
     <link rel="stylesheet" href="css/style.css" />
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Chart.js Annotation Plugin (for FoS reference lines) -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Leaflet Heat Plugin -->
@@ -162,7 +164,7 @@
                         <div class="form-group">
                             <label>Slope Angle</label>
                             <div class="range-wrap">
-                                <input type="range" id="inp-slope" min="5" max="80" value="35" data-suffix="deg" />
+                                <input type="range" id="inp-slope" min="5" max="80" value="35" data-suffix=" deg" />
                                 <span id="inp-slope-val" class="range-val">35 deg</span>
                             </div>
                         </div>
@@ -187,7 +189,7 @@
                                 <input type="range" id="inp-veg" min="0" max="100" value="40" data-suffix="%" />
                                 <span id="inp-veg-val" class="range-val">40%</span>
                             </div>
-                            <button class="btn btn-sm btn-accent" onclick="DharaApp.fetchSatelliteGreen()" style="margin-top:4px;font-size:0.72rem">Fetch from Satellite View</button>
+                            <button class="btn btn-sm btn-accent" onclick="DharaApp.fetchSatelliteGreen()" style="margin-top:4px;font-size:0.72rem">Estimate from Terrain Model</button>
                         </div>
                         <!-- Live Soil Data Indicator -->
                         <div class="form-group">
@@ -254,13 +256,13 @@
 
             <!-- SATELLITE VIEW PANEL -->
             <div class="card" id="satellite-panel" style="display:none;margin-top:16px">
-                <div class="card-header"><h3>Satellite View -- Green Cover Estimation</h3></div>
+                <div class="card-header"><h3>Terrain Model -- Green Cover Estimation</h3></div>
                 <div class="grid-2">
                     <div id="satellite-map-container" style="height:350px;border-radius:6px;overflow:hidden"></div>
                     <div id="satellite-info" style="padding:12px">
                         <p style="font-size:0.85rem;color:#666">This view uses Esri World Imagery to estimate vegetation (green) percentage in a 500m radius around the selected location.</p>
                         <div id="green-pct-display" style="font-size:2rem;font-weight:700;color:#2E7D32;margin:16px 0">--</div>
-                        <p id="green-pct-note" style="font-size:0.78rem;color:#888">Estimated from satellite pixel analysis. Used for root cohesion calculation.</p>
+                        <p id="green-pct-note" style="font-size:0.78rem;color:#888">Estimated from terrain model (latitude, slope, rainfall zone). Not satellite pixel analysis. Used for root cohesion calculation.</p>
                         <button class="btn btn-secondary" onclick="DharaApp.applySatelliteGreen()">Apply to Vegetation %</button>
                     </div>
                 </div>

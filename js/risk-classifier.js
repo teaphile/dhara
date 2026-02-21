@@ -138,12 +138,22 @@ const RiskClassifier = (function () {
             if (ds.openMeteoElevation) liveDataBoost += 2;
         }
 
+        // confidence is an object {level, percentage, ...} — boost its percentage
+        var boostedConfidence = Object.assign({}, confidence, {
+            percentage: Math.min(100, confidence.percentage + liveDataBoost)
+        });
+        // Recalculate level from boosted percentage
+        if (boostedConfidence.percentage >= 80) boostedConfidence.level = 'HIGH';
+        else if (boostedConfidence.percentage >= 60) boostedConfidence.level = 'MODERATE';
+        else if (boostedConfidence.percentage >= 40) boostedConfidence.level = 'LOW';
+        else boostedConfidence.level = 'VERY LOW';
+
         return {
             // Composite
             compositeScore: parseFloat(adjustedScore.toFixed(1)),
             classification: classification,
             probabilityIndex: probabilityIndex,
-            confidence: Math.min(100, confidence + liveDataBoost),
+            confidence: boostedConfidence,
 
             // Component breakdown
             components: {

@@ -293,7 +293,7 @@ const ReportGenerator = (function () {
         <br><br>
         <strong>Standards Referenced:</strong> IS 14496 (Part 2), IS 14458 (Parts 1-3), IRC:SP:48-1998, IS 456:2000, IS 1904:1986, NIDM 2019, NDMA Guidelines
         <br>
-        <strong>Data Policy:</strong> No artificial data generated. Missing values marked. All soil parameters from IS code database.
+        <strong>Data Policy:</strong> Soil parameters from IS code database. Engineering properties may be enhanced with ISRIC SoilGrids data when available. Values marked 'estimated' are derived from empirical correlations and should be verified with site-specific testing.
     </div>
 
     <!-- FOOTER -->
@@ -338,7 +338,7 @@ const ReportGenerator = (function () {
 
         var sources = [
             { name: 'Open-Meteo Weather API', used: ds.openMeteoWeather, url: 'https://open-meteo.com/', desc: 'Real-time temperature, humidity, rainfall, wind, soil moisture' },
-            { name: 'Open-Meteo Historical Archive', used: ds.openMeteoHistorical, url: 'https://open-meteo.com/', desc: '90-day antecedent rainfall analysis' },
+            { name: 'Open-Meteo Historical Archive', used: ds.openMeteoHistorical, url: 'https://open-meteo.com/', desc: '30-day antecedent rainfall analysis' },
             { name: 'Open-Meteo Elevation API', used: ds.openMeteoElevation, url: 'https://open-meteo.com/', desc: 'DEM-based elevation and slope estimation' },
             { name: 'USGS Earthquake Hazards', used: ds.usgsEarthquakes, url: 'https://earthquake.usgs.gov/', desc: 'Seismic events within 300km radius (past 1 year)' },
             { name: 'ISRIC SoilGrids v2.0', used: ds.soilGrids, url: 'https://soilgrids.org/', desc: 'Real soil composition (clay%, sand%, pH, bulk density) at 250m resolution' },

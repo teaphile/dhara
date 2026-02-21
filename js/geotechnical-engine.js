@@ -897,8 +897,8 @@ const GeotechnicalEngine = (function () {
         let soil = SOIL_DATABASE[soilType] || SOIL_DATABASE['clayey_sand'];
 
         // Override soil params with real SoilGrids engineering properties
-        if (liveSoil && liveSoil.engineeringProps) {
-            var ep = liveSoil.engineeringProps;
+        if (liveSoil && liveSoil.engineering) {
+            var ep = liveSoil.engineering;
             soil = Object.assign({}, soil, {
                 name: soil.name + ' [SoilGrids-enhanced]',
                 cohesion: { mean: ep.estimatedCohesion || soil.cohesion.mean, stddev: soil.cohesion.stddev, unit: 'kPa' },
@@ -937,7 +937,7 @@ const GeotechnicalEngine = (function () {
         // Antecedent rainfall modifier from historical data
         var antecedentModifier = 0;
         if (liveHistorical) {
-            var recentRain = liveHistorical.totalRainfall || 0;
+            var recentRain = (liveHistorical.stats && liveHistorical.stats.totalRainfall30d) || 0;
             if (recentRain > 500) antecedentModifier = 0.2;
             else if (recentRain > 300) antecedentModifier = 0.15;
             else if (recentRain > 150) antecedentModifier = 0.1;

@@ -119,6 +119,7 @@ const MapModule = (function () {
     }
 
     function getMap() { return map; }
+    function getRiskMap() { return riskMap; }
     function getMarker() { return marker; }
 
     // ========================================================================
@@ -497,6 +498,7 @@ const MapModule = (function () {
         setMarker,
         flyTo,
         getMap,
+        getRiskMap,
         getMarker,
 
         // Risk heatmap

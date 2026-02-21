@@ -306,14 +306,16 @@ const DharaCharts = (function () {
         if (!ctx || !riskAssessment?.components) return;
 
         const comp = riskAssessment.components;
-        const labels = ['Geotechnical', 'Rainfall', 'Vegetation', 'Structural', 'Terrain', 'Field Obs.'];
+        const labels = ['Geotechnical', 'Rainfall', 'Vegetation', 'Structural', 'Terrain', 'Field Obs.', 'Seismic', 'Weather'];
         const scores = [
             comp.geotechnical?.score || 0,
             comp.rainfall?.score || 0,
             comp.vegetation?.score || 0,
             comp.structural?.score || 0,
             comp.terrain?.score || 0,
-            comp.field?.score || 0
+            comp.field?.score || 0,
+            comp.seismic?.score || 0,
+            comp.weather?.score || 0
         ];
 
         chartInstances[canvasId] = new Chart(ctx, {
@@ -743,13 +745,14 @@ const DharaCharts = (function () {
     // 12. DATA VISUALIZER — Risk Weight Pie Chart
     // ========================================================================
     /**
-     * Pie chart showing the weight distribution of the 6 risk components.
+     * Pie chart showing the weight distribution of the 8 risk components.
      * Purpose: Explains how the composite risk score is calculated —
      * which factors contribute the most to the final risk classification.
      *
-     * Weights:
-     *   Geotechnical: 35%, Rainfall: 25%, Vegetation: 15%,
-     *   Structural: 10%, Terrain: 10%, Field Observations: 5%
+     * Weights (8 components, total = 100%):
+     *   Geotechnical: 30%, Rainfall: 20%, Vegetation: 12%,
+     *   Structural: 8%, Terrain: 10%, Field Observations: 5%,
+     *   Seismic: 10%, Weather: 5%
      *
      * @param {string} canvasId
      */
@@ -762,24 +765,28 @@ const DharaCharts = (function () {
             type: 'pie',
             data: {
                 labels: [
-                    'Geotechnical (35%)',
-                    'Rainfall (25%)',
-                    'Vegetation (15%)',
-                    'Structural (10%)',
+                    'Geotechnical (30%)',
+                    'Rainfall (20%)',
+                    'Vegetation (12%)',
                     'Terrain (10%)',
-                    'Field Obs. (5%)'
+                    'Seismic (10%)',
+                    'Structural (8%)',
+                    'Field Obs. (5%)',
+                    'Weather (5%)'
                 ],
                 datasets: [{
-                    data: [35, 25, 15, 10, 10, 5],
+                    data: [30, 20, 12, 10, 10, 8, 5, 5],
                     backgroundColor: [
                         'rgba(21, 101, 192, 0.8)',
                         'rgba(30, 136, 229, 0.8)',
                         'rgba(46, 125, 50, 0.8)',
-                        'rgba(230, 81, 0, 0.8)',
                         'rgba(245, 127, 23, 0.8)',
-                        'rgba(106, 27, 154, 0.8)'
+                        'rgba(198, 40, 40, 0.8)',
+                        'rgba(230, 81, 0, 0.8)',
+                        'rgba(106, 27, 154, 0.8)',
+                        'rgba(0, 151, 167, 0.8)'
                     ],
-                    borderColor: ['#1565C0', '#1E88E5', '#2E7D32', '#E65100', '#F57F17', '#6A1B9A'],
+                    borderColor: ['#1565C0', '#1E88E5', '#2E7D32', '#F57F17', '#C62828', '#E65100', '#6A1B9A', '#0097A7'],
                     borderWidth: 2
                 }]
             },
@@ -935,7 +942,7 @@ const DharaCharts = (function () {
             return d.getHours() + ':00';
         });
         var rain = hourly.rain ? hourly.rain.slice(0, 48) : [];
-        var moisture = hourly.soilMoisture ? hourly.soilMoisture.slice(0, 48) : [];
+        var moisture = hourly.soilMoisture0to7 ? hourly.soilMoisture0to7.slice(0, 48) : [];
 
         chartInstances[canvasId] = new Chart(ctx, {
             type: 'bar',
@@ -1073,8 +1080,8 @@ const DharaCharts = (function () {
         var ctx = document.getElementById(canvasId);
         if (!ctx || !historicalData) return;
 
-        var labels = historicalData.dates || [];
-        var rain = historicalData.dailyRain || [];
+        var labels = (historicalData.daily && historicalData.daily.time) || [];
+        var rain = (historicalData.daily && historicalData.daily.precipitationSum) || [];
         var cumulative = [];
         var sum = 0;
         for (var i = 0; i < rain.length; i++) {
@@ -1126,7 +1133,7 @@ const DharaCharts = (function () {
                 plugins: {
                     title: {
                         display: true,
-                        text: '90-Day Historical Rainfall (Open-Meteo Archive)',
+                        text: '30-Day Historical Rainfall (Open-Meteo Archive)',
                         font: { size: 13, weight: '600' }
                     },
                     legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } }

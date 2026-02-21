@@ -371,15 +371,17 @@ const DharaApp = (function () {
                     state.analysisResults.elevation = state.liveData.elevation?.elevation || null;
                     state.analysisResults.locationName = state.liveData.geocode?.shortName || '';
 
-                    // Add weather severity to risk modifier
+                    // Pass weather severity for risk classification (scored as weather component at 5% weight)
                     if (state.liveData.weather?.derived) {
                         state.analysisResults.weatherSeverity = state.liveData.weather.derived.weatherSeverityScore;
-                        state.analysisResults.riskModifier += (state.liveData.weather.derived.weatherSeverityScore / 100) * 0.1;
+                        // Note: weather severity is scored as a dedicated 5% weighted component
+                        // in RiskClassifier — do NOT add to riskModifier to avoid double-counting
                     }
-                    // Add seismic risk modifier
+                    // Pass earthquake data for risk classification (scored as seismic component)
                     if (state.liveData.earthquakes) {
                         state.analysisResults.seismicRisk = state.liveData.earthquakes.seismicRisk;
-                        state.analysisResults.riskModifier += state.liveData.earthquakes.riskModifier || 0;
+                        // Note: seismic risk is scored as a dedicated 10% weighted component
+                        // in RiskClassifier — do NOT add to riskModifier to avoid double-counting
                     }
                 }
 
@@ -501,7 +503,7 @@ const DharaApp = (function () {
         setMetric('res-fos', ar.compositeFoS?.toFixed(3), fosClass(ar.compositeFoS));
         setMetric('res-risk-score', ra.compositeScore?.toFixed(0), riskClass(cls.level));
         setMetric('res-pf', ar.monteCarlo?.probability_of_failure?.toFixed(1) + '%', riskClass(cls.level));
-        setMetric('res-confidence', ra.confidence?.level, '');
+        setMetric('res-confidence', ra.confidence?.level || 'N/A', '');
 
         // Risk banner
         var banner = document.getElementById('risk-banner');
@@ -581,29 +583,38 @@ const DharaApp = (function () {
                 state.riskAssessment
             );
             // Add earthquake markers if available
-            if (state.liveData && state.liveData.earthquakes) {
-                var riskMap = document.getElementById('riskMapContainer');
-                if (riskMap && riskMap._leaflet_id) {
-                    // Get the leaflet map instance from the risk map container
-                    var mapInstance = null;
-                    for (var key in riskMap) {
-                        if (key.startsWith('_leaflet') && riskMap[key] && riskMap[key]._zoom !== undefined) {
-                            mapInstance = riskMap[key];
-                            break;
-                        }
+            if (state.liveData && state.liveData.earthquakes && state.liveData.earthquakes.events.length > 0) {
+                // riskMap is created by MapModule.initRiskMap — use a short delay for it to be ready
+                setTimeout(function() {
+                    // The riskMap instance is internal to MapModule, so use a getter or pass it
+                    // MapModule exposes addEarthquakeMarkers which needs the map instance
+                    // We can access the risk map via the container
+                    var riskMapContainer = document.getElementById('riskMapContainer');
+                    if (riskMapContainer) {
+                        // Leaflet stores map ref on the container element
+                        var mapKeys = Object.keys(riskMapContainer).filter(function(k) {
+                            return k.startsWith('_leaflet_id');
+                        });
+                        // Use L.Map instances stored internally
+                        var allMaps = [];
+                        riskMapContainer.querySelectorAll('.leaflet-container');
+                        // Simpler: MapModule tracks riskMap internally, add a getRiskMap getter
+                        // For now, we'll use the last created map approach
+                        MapModule.addEarthquakeMarkers(
+                            MapModule.getRiskMap ? MapModule.getRiskMap() : null,
+                            state.liveData.earthquakes
+                        );
                     }
-                    if (!mapInstance) {
-                        // Try to get from MapModule
-                        mapInstance = MapModule.getMap && MapModule.getMap();
-                    }
-                }
+                }, 300);
             }
-            // Add weather overlay
+            // Add weather overlay to risk map (not input map)
             if (state.liveData && state.liveData.weather) {
-                var mainMap = MapModule.getMap();
-                if (mainMap) {
-                    MapModule.addWeatherOverlay(mainMap, state.liveData.weather, state.lat, state.lon);
-                }
+                setTimeout(function() {
+                    var riskMapInstance = MapModule.getRiskMap ? MapModule.getRiskMap() : null;
+                    if (riskMapInstance) {
+                        MapModule.addWeatherOverlay(riskMapInstance, state.liveData.weather, state.lat, state.lon);
+                    }
+                }, 350);
             }
         }, 150);
     }
