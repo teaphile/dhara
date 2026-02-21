@@ -7,21 +7,21 @@
  * ============================================================================
  */
 
-const CACHE_NAME = 'dhara-rakshak-v2.0';
+const CACHE_NAME = 'dhara-rakshak-v2.1';
 const STATIC_ASSETS = [
-    '/',
-    '/index.html',
-    '/css/style.css',
-    '/js/app.js',
-    '/js/api-service.js',
-    '/js/geotechnical-engine.js',
-    '/js/risk-classifier.js',
-    '/js/charts.js',
-    '/js/map-module.js',
-    '/js/mitigation-engine.js',
-    '/js/voice-system.js',
-    '/js/report-generator.js',
-    '/manifest.json'
+    './',
+    './index.html',
+    './css/style.css',
+    './js/app.js',
+    './js/api-service.js',
+    './js/geotechnical-engine.js',
+    './js/risk-classifier.js',
+    './js/charts.js',
+    './js/map-module.js',
+    './js/mitigation-engine.js',
+    './js/voice-system.js',
+    './js/report-generator.js',
+    './manifest.json'
 ];
 
 const CDN_ASSETS = [

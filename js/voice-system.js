@@ -267,3 +267,5 @@ const VoiceSystem = (function () {
         LANGUAGES
     };
 })();
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = VoiceSystem; }

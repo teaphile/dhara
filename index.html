@@ -60,8 +60,13 @@
         <div class="loading-text">Processing...</div>
     </div>
 
+    <!-- MOBILE HAMBURGER -->
+    <button id="hamburger-btn" class="hamburger-btn" aria-label="Toggle navigation menu">
+        <span></span><span></span><span></span>
+    </button>
+
     <!-- SIDEBAR -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
             <div class="brand-icon">D-R</div>
             <div>
@@ -105,8 +110,19 @@
             </div>
         </nav>
 
+        <!-- Dark Mode & Connectivity -->
+        <div class="sidebar-controls">
+            <button id="dark-mode-toggle" class="sidebar-toggle-btn" aria-label="Toggle dark mode" title="Toggle Dark Mode">
+                <span id="dark-mode-icon">☀</span> <span class="nav-label">Dark Mode</span>
+            </button>
+            <div id="connectivity-status" class="connectivity-badge online">
+                <span class="conn-dot"></span>
+                <span class="nav-label" id="conn-label">Online</span>
+            </div>
+        </div>
+
         <div class="sidebar-footer">
-            <div class="sf-line">Dhara-Rakshak v2.0</div>
+            <div class="sf-line">Dhara-Rakshak v2.1</div>
             <div class="sf-line">Decision Support Tool</div>
         </div>
     </aside>
@@ -248,7 +264,7 @@
                         </div>
                     </div>
                     <div style="margin-top:18px;display:flex;gap:12px;justify-content:flex-end;align-items:center">
-                        <button class="btn btn-secondary" onclick="DharaApp.fetchLiveData()" id="btn-fetch-live">Fetch Live Data</button>
+                        <button class="btn btn-secondary" id="btn-fetch-live">Fetch Live Data</button>
                         <button class="btn btn-primary btn-lg" onclick="DharaApp.runAnalysis()">Run Full Analysis</button>
                     </div>
                 </div>
@@ -562,6 +578,12 @@
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js').catch(function() {});
         }
+        // Preload dark mode before paint to prevent flash
+        (function() {
+            if (localStorage.getItem('dhara-dark-mode') === 'true') {
+                document.body.classList.add('dark-mode');
+            }
+        })();
     </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * DHARA-RAKSHAK — Main Application Orchestrator v2.0
+ * DHARA-RAKSHAK — Main Application Orchestrator v2.1
  * ============================================================================
  * Coordinates all modules: input collection, analysis, visualization,
  * risk heatmap, data visualizer, mitigation, voice alerts, report, dashboard.
@@ -49,6 +49,15 @@ const DharaApp = (function () {
 
         var nav = document.querySelector('[data-page="' + pageId + '"]');
         if (nav) nav.classList.add('active');
+
+        // Scroll to top on page switch
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        // Close hamburger sidebar on mobile after navigation
+        var sidebar = document.getElementById('sidebar');
+        var hamburger = document.getElementById('hamburger-btn');
+        if (sidebar) sidebar.classList.remove('open');
+        if (hamburger) hamburger.classList.remove('open');
 
         // Initialize map if navigating to input page
         if (pageId === 'page-input') {
@@ -400,6 +409,7 @@ const DharaApp = (function () {
                 );
 
                 state.analysisComplete = true;
+                saveStateToStorage();
 
                 // Navigate to results
                 navigateTo('page-results');
@@ -936,7 +946,126 @@ const DharaApp = (function () {
     // ========================================================================
     // INITIALIZATION
     // ========================================================================
+    // ==================================================================
+    // DARK MODE
+    // ==================================================================
+    function initDarkMode() {
+        var toggle = document.getElementById('dark-mode-toggle');
+        if (!toggle) return;
+
+        // Restore saved preference
+        if (localStorage.getItem('dhara-dark-mode') === '1') {
+            document.body.classList.add('dark-mode');
+            toggle.innerHTML = '☀️ <span>Light Mode</span>';
+        }
+
+        toggle.addEventListener('click', function () {
+            document.body.classList.toggle('dark-mode');
+            var isDark = document.body.classList.contains('dark-mode');
+            localStorage.setItem('dhara-dark-mode', isDark ? '1' : '0');
+            toggle.innerHTML = isDark ? '☀️ <span>Light Mode</span>' : '🌙 <span>Dark Mode</span>';
+        });
+    }
+
+    // ==================================================================
+    // HAMBURGER / MOBILE MENU
+    // ==================================================================
+    function initHamburger() {
+        var btn = document.getElementById('hamburger-btn');
+        var sidebar = document.getElementById('sidebar');
+        if (!btn || !sidebar) return;
+
+        btn.addEventListener('click', function () {
+            btn.classList.toggle('open');
+            sidebar.classList.toggle('open');
+        });
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function (e) {
+            if (window.innerWidth > 900) return;
+            if (!sidebar.contains(e.target) && !btn.contains(e.target) && sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
+                btn.classList.remove('open');
+            }
+        });
+    }
+
+    // ==================================================================
+    // CONNECTIVITY INDICATOR
+    // ==================================================================
+    function initConnectivity() {
+        var badge = document.getElementById('connectivity-status');
+        if (!badge) return;
+
+        function update() {
+            if (navigator.onLine) {
+                badge.className = 'connectivity-badge online';
+                badge.innerHTML = '<span class="conn-dot"></span> Online';
+            } else {
+                badge.className = 'connectivity-badge offline';
+                badge.innerHTML = '<span class="conn-dot"></span> Offline';
+            }
+        }
+        update();
+        window.addEventListener('online', update);
+        window.addEventListener('offline', update);
+    }
+
+    // ==================================================================
+    // LOCAL STORAGE PERSISTENCE
+    // ==================================================================
+    function saveStateToStorage() {
+        try {
+            var saveData = {
+                lat: state.lat,
+                lon: state.lon,
+                analysisComplete: state.analysisComplete,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('dhara-state', JSON.stringify(saveData));
+        } catch (e) { /* quota exceeded or private mode */ }
+    }
+
+    function restoreStateFromStorage() {
+        try {
+            var saved = localStorage.getItem('dhara-state');
+            if (!saved) return;
+            var data = JSON.parse(saved);
+            // Only restore if less than 24 hours old
+            if (Date.now() - data.timestamp > 86400000) return;
+            if (data.lat) state.lat = data.lat;
+            if (data.lon) state.lon = data.lon;
+            var latEl = document.getElementById('inp-lat');
+            var lonEl = document.getElementById('inp-lon');
+            if (latEl) latEl.value = state.lat;
+            if (lonEl) lonEl.value = state.lon;
+        } catch (e) { /* ignore parse errors */ }
+    }
+
+    // ==================================================================
+    // KEYBOARD SHORTCUTS
+    // ==================================================================
+    function initKeyboardShortcuts() {
+        document.addEventListener('keydown', function (e) {
+            // Ctrl+Enter or Cmd+Enter → Run Analysis
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                runAnalysis();
+            }
+            // Escape → close hamburger on mobile
+            if (e.key === 'Escape') {
+                var sidebar = document.getElementById('sidebar');
+                var hamburger = document.getElementById('hamburger-btn');
+                if (sidebar) sidebar.classList.remove('open');
+                if (hamburger) hamburger.classList.remove('open');
+            }
+        });
+    }
+
     function init() {
+        // Restore saved state first
+        restoreStateFromStorage();
+
         // Set up navigation
         document.querySelectorAll('.sidebar-nav-item').forEach(function (item) {
             item.addEventListener('click', function () {
@@ -968,6 +1097,12 @@ const DharaApp = (function () {
                 fetchLiveData();
             });
         }
+
+        // Initialize feature modules
+        initDarkMode();
+        initHamburger();
+        initConnectivity();
+        initKeyboardShortcuts();
 
         // Navigate to input page
         navigateTo('page-input');
