@@ -1,0 +1,106 @@
+File: C:\Users\HP\OneDrive\Desktop\research papers 2026\AQI PAPER\AGREEMENT GRAPHS\M5P TRAINING 1.xlsx
+Sheets: 8
+
+=== Sheet 1: [Sheet1] ===
+  Dimensions: 1081 rows x 5 cols
+  Headers: ['inst#', 'actual', 'predicted', 'None', 'None']
+  Row 2: [1, 114.688, 115.918, None, None]
+  Row 3: [2, 114.146, 116.145, None, 'M5P TRAINING']
+  Row 4: [3, 114.479, 116.033, None, None]
+  Row 5: [4, 115.396, 116.081, None, None]
+  Row 6: [5, 115.271, 116.454, None, None]
+  ...
+  Row 1080: [1079, 256.571, 333.265, None, None]
+  Row 1081: [1080, 238.952, 325.085, None, None]
+  Non-null: ['inst#=1080', 'actual=1080', 'predicted=1080', 'None=0', 'None=1']
+
+=== Sheet 2: [Sheet2] ===
+  Dimensions: 732 rows x 4 cols
+  Headers: ['actual', 'predicted', 'None', 'm5p test']
+  Row 2: [193.583, 284.859, None, None]
+  Row 3: [240.643, 240.694, None, None]
+  Row 4: [209.69, 258.472, None, None]
+  Row 5: [400, 246.442, None, None]
+  Row 6: [400, 328.714, None, None]
+  ...
+  Row 731: [400, 198.807, None, None]
+  Row 732: [400, 323.002, None, None]
+  Non-null: ['actual=731', 'predicted=731', 'None=0', 'm5p test=0']
+
+=== Sheet 3: [Sheet3] ===
+  Dimensions: 1081 rows x 4 cols
+  Headers: ['actual', 'predicted', 'None', 'random forest training']
+  Row 2: [114.688, 113.398, None, None]
+  Row 3: [114.146, 119.161, None, None]
+  Row 4: [114.479, 113.649, None, None]
+  Row 5: [115.396, 113.644, None, None]
+  Row 6: [115.271, 113.813, None, None]
+  ...
+  Row 1080: [256.571, 300.7, None, None]
+  Row 1081: [238.952, 246.177, None, None]
+  Non-null: ['actual=1080', 'predicted=1080', 'None=0', 'random forest training=0']
+
+=== Sheet 4: [Sheet4] ===
+  Dimensions: 732 rows x 4 cols
+  Headers: ['actual', 'predicted', 'None', 'random forest  test']
+  Row 2: [193.583, 290.05, None, None]
+  Row 3: [240.643, 251.028, None, None]
+  Row 4: [209.69, 270.496, None, None]
+  Row 5: [400, 251.905, None, None]
+  Row 6: [400, 329.124, None, None]
+  ...
+  Row 731: [400, 251.29, None, None]
+  Row 732: [400, 343.905, None, None]
+  Non-null: ['actual=731', 'predicted=731', 'None=0', 'random forest  test=0']
+
+=== Sheet 5: [Sheet5] ===
+  Dimensions: 1081 rows x 4 cols
+  Headers: ['actual', 'predicted', 'None', 'None']
+  Row 2: [114.688, 112.889, None, 'random tree training']
+  Row 3: [114.146, 113.566, None, None]
+  Row 4: [114.479, 112.877, None, None]
+  Row 5: [115.396, 113.566, None, None]
+  Row 6: [115.271, 113.566, None, None]
+  ...
+  Row 1080: [256.571, 288.512, None, None]
+  Row 1081: [238.952, 253.46, None, None]
+  Non-null: ['actual=1080', 'predicted=1080', 'None=0', 'None=1']
+
+=== Sheet 6: [Sheet6] ===
+  Dimensions: 732 rows x 4 cols
+  Headers: ['actual', 'predicted', 'None', 'None']
+  Row 2: [193.583, 332.132, None, 'rep tree test']
+  Row 3: [240.643, 249.623, None, None]
+  Row 4: [209.69, 242.586, None, None]
+  Row 5: [400, 231.1, None, None]
+  Row 6: [400, 292.539, None, None]
+  ...
+  Row 731: [400, 260.888, None, None]
+  Row 732: [400, 301.824, None, None]
+  Non-null: ['actual=731', 'predicted=731', 'None=0', 'None=1']
+
+=== Sheet 7: [Sheet7] ===
+  Dimensions: 1081 rows x 4 cols
+  Headers: ['actual', 'predicted', 'None', 'None']
+  Row 2: [114.688, 113.731, None, 'rep tree TRAINING']
+  Row 3: [114.146, 113.731, None, None]
+  Row 4: [114.479, 113.731, None, None]
+  Row 5: [115.396, 113.731, None, None]
+  Row 6: [115.271, 113.731, None, None]
+  ...
+  Row 1080: [256.571, 334.566, None, None]
+  Row 1081: [238.952, 297.081, None, None]
+  Non-null: ['actual=1080', 'predicted=1080', 'None=0', 'None=1']
+
+=== Sheet 8: [Sheet8] ===
+  Dimensions: 732 rows x 4 cols
+  Headers: ['actual', 'predicted', 'None', 'None']
+  Row 2: [193.583, 297.081, None, 'REP TREE TEST']
+  Row 3: [240.643, 225.936, None, None]
+  Row 4: [209.69, 297.081, None, None]
+  Row 5: [400, 225.936, None, None]
+  Row 6: [400, 334.566, None, None]
+  ...
+  Row 731: [400, 225.936, None, None]
+  Row 732: [400, 334.566, None, None]
+  Non-null: ['actual=731', 'predicted=731', 'None=0', 'None=1']

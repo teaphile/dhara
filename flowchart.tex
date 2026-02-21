@@ -1,0 +1,148 @@
+% ============================================================
+% AQI Prediction Methodology Flowchart — Agra City, India
+% Clean, Systematic, Publication-Ready | Springer/Elsevier
+% ============================================================
+\documentclass[border=8pt]{standalone}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{tikz}
+\usepackage{amsmath}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc}
+
+% ---- Minimal grayscale-safe palette ----
+\definecolor{termcol}{RGB}{33,33,33}
+\definecolor{boxfill}{RGB}{240,242,245}
+\definecolor{boxline}{RGB}{55,65,81}
+\definecolor{modelfill}{RGB}{229,231,235}
+
+\tikzset{
+    terminal/.style={
+        rounded rectangle, rounded rectangle arc length=180,
+        minimum width=3.6cm, minimum height=0.8cm,
+        draw=termcol, fill=termcol, text=white,
+        font=\sffamily\bfseries\small, line width=0.8pt
+    },
+    proc/.style={
+        rectangle, rounded corners=2pt,
+        minimum width=10cm, minimum height=0.8cm,
+        draw=boxline, fill=boxfill,
+        font=\sffamily\small, line width=0.5pt,
+        text width=9.4cm, align=center
+    },
+    modelbox/.style={
+        rectangle, rounded corners=2pt,
+        minimum width=2.1cm, minimum height=0.7cm,
+        draw=boxline, fill=modelfill,
+        font=\sffamily\footnotesize\bfseries, line width=0.5pt
+    },
+    arr/.style={-Stealth, line width=0.6pt, draw=boxline},
+    thin arr/.style={-Stealth, line width=0.45pt, draw=boxline!70}
+}
+
+\begin{document}
+\begin{tikzpicture}[node distance=0.55cm]
+
+% =============================================
+%  NODES  (top → bottom, single spine)
+% =============================================
+
+\node (start) [terminal] {Start};
+
+\node (area) [proc, below=of start]
+    {Selection of Study Area: \textbf{Agra City, Uttar Pradesh, India}};
+
+\node (stn) [proc, below=of area]
+    {Selection of UPPCB Monitoring Stations\\[1pt]
+     {\footnotesize Manoharpur\;\textbar\;Rohta\;\textbar\;Sanjay Palace\;\textbar\;Sector-3B Avas Vikas Colony\;\textbar\;Shahjahan Garden\;\textbar\;Shastripuram}};
+
+\node (data) [proc, below=of stn]
+    {Data Collection from UPPCB\quad{\footnotesize (Daily AQI, Study Period: 2015\,--\,2024)}};
+
+\node (prep) [proc, below=of data]
+    {Data Pre-processing\\[1pt]
+     {\footnotesize Missing Data Removal\;$\rightarrow$\;Outlier Detection\;$\rightarrow$\;Data Cleaning\;$\rightarrow$\;Normalization}};
+
+\node (avg) [proc, below=of prep]
+    {Calculation of Station-wise and City-wise Average AQI};
+
+\node (lag) [proc, below=of avg]
+    {Time-Series Dataset Preparation\\[1pt]
+     {\footnotesize Lag Variables: $\mathrm{AQI}_{t-1}$ to $\mathrm{AQI}_{t-15}$\quad|\quad Input Combinations T1\,--\,T15}};
+
+\node (split) [proc, below=of lag]
+    {Dataset Partitioning:\quad\textbf{Training 75\,\%}\;\textbar\;\textbf{Testing 25\,\%}};
+
+\node (weka) [proc, below=0.7cm of split]
+    {Model Development Using \textbf{WEKA} Software};
+
+% --- Four model boxes side-by-side ---
+\node (m5p)  [modelbox, below=0.55cm of weka, xshift=-3.45cm] {M5P};
+\node (rf)   [modelbox, right=0.3cm of m5p]  {Random Forest};
+\node (rt)   [modelbox, right=0.3cm of rf]   {Random Tree};
+\node (rept) [modelbox, right=0.3cm of rt]   {REPTree};
+
+\node (train) [proc, below=0.55cm of $(rf.south)!0.5!(rt.south)$]
+    {Model Training\quad{\footnotesize (Training Set\;---\;75\,\%)}};
+
+\node (test) [proc, below=of train]
+    {Model Testing and Validation\quad{\footnotesize (Testing Set\;---\;25\,\%)}};
+
+\node (perf) [proc, below=of test]
+    {Performance Evaluation\\[1pt]
+     {\footnotesize CC\;$\cdot$\;MAE\;$\cdot$\;RMSE\;$\cdot$\;SI}};
+
+\node (comp) [proc, below=of perf]
+    {Model Comparison and Best Model Selection};
+
+\node (graph) [proc, below=of comp]
+    {Graphical Analysis\\[1pt]
+     {\footnotesize Agreement Plot\;$\cdot$\;Performance Plot\;$\cdot$\;Taylor Diagram}};
+
+\node (result) [proc, below=of graph]
+    {Result Interpretation and Discussion};
+
+\node (conc) [proc, below=of result]
+    {Conclusion and Policy Implications};
+
+\node (end) [terminal, below=of conc] {End};
+
+% =============================================
+%  ARROWS  (continuous single-spine flow)
+% =============================================
+
+% Main spine
+\draw[arr] (start)  -- (area);
+\draw[arr] (area)   -- (stn);
+\draw[arr] (stn)    -- (data);
+\draw[arr] (data)   -- (prep);
+\draw[arr] (prep)   -- (avg);
+\draw[arr] (avg)    -- (lag);
+\draw[arr] (lag)    -- (split);
+\draw[arr] (split)  -- (weka);
+
+% Fan-out: WEKA → four models
+\coordinate (fanout) at ($(weka.south)+(0,-0.22)$);
+\draw[thin arr] (weka.south) -- (fanout) -| (m5p.north);
+\draw[thin arr] (fanout) -| (rf.north);
+\draw[thin arr] (fanout) -| (rt.north);
+\draw[thin arr] (fanout) -| (rept.north);
+
+% Fan-in: four models → training
+\coordinate (fanin) at ($(train.north)+(0,0.22)$);
+\draw[thin arr] (m5p.south)  |- (fanin);
+\draw[thin arr] (rf.south)   -- (fanin);
+\draw[thin arr] (rt.south)   -- (fanin);
+\draw[thin arr] (rept.south) |- (fanin);
+\draw[arr] (fanin) -- (train.north);
+
+% Remaining spine
+\draw[arr] (train)  -- (test);
+\draw[arr] (test)   -- (perf);
+\draw[arr] (perf)   -- (comp);
+\draw[arr] (comp)   -- (graph);
+\draw[arr] (graph)  -- (result);
+\draw[arr] (result) -- (conc);
+\draw[arr] (conc)   -- (end);
+
+\end{tikzpicture}
+\end{document}
