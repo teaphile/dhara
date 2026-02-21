@@ -558,10 +558,6 @@ This project is open source under the [MIT License](LICENSE).
 
 <div align="center">
 
-**Dhara-Rakshak v3.0** — _Protecting Earth, Protecting Lives_
-
-धरा-रक्षक — _पृथ्वी की रक्षा, जीवन की रक्षा_
-
 Made with precision for landslide-prone regions of India 🇮🇳
 
 </div>
