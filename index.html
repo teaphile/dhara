@@ -47,6 +47,12 @@
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 </head>
 <body>
+    <!-- Accessibility Skip Link -->
+    <a href="#page-input" class="skip-link">Skip to main content</a>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
     <!-- No JavaScript Fallback -->
     <noscript>
         <div style="padding:40px;text-align:center;font-family:sans-serif;background:#FFCDD2;color:#B71C1C;">
@@ -122,8 +128,8 @@
         </div>
 
         <div class="sidebar-footer">
-            <div class="sf-line">Dhara-Rakshak v2.1</div>
-            <div class="sf-line">Decision Support Tool</div>
+            <div class="sf-line">Dhara-Rakshak v3.0</div>
+            <div class="sf-line">Advanced Decision Support</div>
         </div>
     </aside>
 
@@ -540,8 +546,10 @@
                 <h1>Engineering Report</h1>
                 <p>Auto-generated geotechnical assessment report</p>
             </div>
-            <div style="margin-bottom:12px">
+            <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap">
                 <button class="btn btn-primary" onclick="DharaApp.downloadReport()">Download Report (HTML)</button>
+                <button class="btn btn-secondary" onclick="DharaApp.exportJSON()">Export Data (JSON)</button>
+                <button class="btn btn-secondary" onclick="DharaApp.exportCSV()">Export Data (CSV)</button>
             </div>
             <div class="card" style="padding:0">
                 <iframe id="report-preview-frame" style="width:100%;height:700px;border:none;border-radius:6px"></iframe>
@@ -554,10 +562,20 @@
         <section id="page-dashboard" class="module-page">
             <div class="page-header">
                 <h1>Dashboard</h1>
-                <p>Overall assessment summary</p>
+                <p>Overall assessment summary and analysis history</p>
             </div>
             <div id="dashboard-content">
                 <div class="card"><p style="color:#888;padding:20px">Run analysis first to see dashboard summary.</p></div>
+            </div>
+            <!-- Analysis History -->
+            <div class="card" style="margin-top:18px">
+                <div class="card-header"><h3>Analysis History</h3></div>
+                <div id="analysis-history">
+                    <p style="color:#888;font-size:0.85rem">No previous analyses saved yet.</p>
+                </div>
+                <div style="margin-top:12px;display:flex;gap:10px">
+                    <button class="btn btn-secondary btn-sm" onclick="DharaApp.clearHistory()">Clear History</button>
+                </div>
             </div>
         </section>
     </main>
@@ -580,7 +598,7 @@
         }
         // Preload dark mode before paint to prevent flash
         (function() {
-            if (localStorage.getItem('dhara-dark-mode') === 'true') {
+            if (localStorage.getItem('dhara-dark-mode') === '1') {
                 document.body.classList.add('dark-mode');
             }
         })();

@@ -1,11 +1,19 @@
 /**
  * ============================================================================
- * DHARA-RAKSHAK — Main Application Orchestrator v2.1
+ * DHARA-RAKSHAK — Main Application Orchestrator v3.0
  * ============================================================================
  * Coordinates all modules: input collection, analysis, visualization,
  * risk heatmap, data visualizer, mitigation, voice alerts, report, dashboard.
  *
- * New in v2.0:
+ * v3.0 Enhancements:
+ *   - Toast notification system (replaces alert())
+ *   - Data export (JSON / CSV)
+ *   - Analysis history with localStorage persistence
+ *   - Enhanced dashboard with analytics
+ *   - Input validation feedback
+ *   - Accessibility improvements
+ *
+ * v2.0:
  *   - goToCoords() — navigate map to typed lat/lon
  *   - fetchSatelliteGreen() — open satellite panel, estimate green %
  *   - applySatelliteGreen() — copy green % to vegetation slider
@@ -34,8 +42,226 @@ const DharaApp = (function () {
         satelliteGreenPct: null,
         // Live API data
         liveData: null,
-        liveDataFetched: false
+        liveDataFetched: false,
+        // Analysis history
+        history: []
     };
+
+    // ========================================================================
+    // TOAST NOTIFICATION SYSTEM
+    // ========================================================================
+    function showToast(message, type, duration) {
+        type = type || 'info';
+        duration = duration || 4000;
+        var container = document.getElementById('toast-container');
+        if (!container) { console.warn('[Toast]', message); return; }
+
+        var icons = { success: '✓', error: '✗', warning: '⚠', info: 'ℹ' };
+        var toast = document.createElement('div');
+        toast.className = 'toast toast-' + type;
+        toast.setAttribute('role', 'alert');
+        toast.innerHTML =
+            '<span class="toast-icon">' + (icons[type] || 'ℹ') + '</span>' +
+            '<span class="toast-body">' + message + '</span>' +
+            '<button class="toast-close" aria-label="Dismiss">&times;</button>';
+
+        container.appendChild(toast);
+
+        var closeBtn = toast.querySelector('.toast-close');
+        var timer = setTimeout(function () { dismissToast(toast); }, duration);
+        closeBtn.addEventListener('click', function () {
+            clearTimeout(timer);
+            dismissToast(toast);
+        });
+    }
+
+    function dismissToast(toast) {
+        if (!toast || toast.classList.contains('toast-exit')) return;
+        toast.classList.add('toast-exit');
+        setTimeout(function () { toast.remove(); }, 300);
+    }
+
+    // ========================================================================
+    // DATA EXPORT FUNCTIONS
+    // ========================================================================
+    function exportJSON() {
+        if (!state.analysisComplete) {
+            showToast('Run analysis first before exporting.', 'warning');
+            return;
+        }
+        var exportData = buildExportPayload();
+        var blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        downloadBlob(blob, 'dhara-analysis-' + formatTimestamp() + '.json');
+        showToast('JSON report exported successfully.', 'success');
+    }
+
+    function exportCSV() {
+        if (!state.analysisComplete) {
+            showToast('Run analysis first before exporting.', 'warning');
+            return;
+        }
+        var rows = buildCSVRows();
+        var csv = rows.map(function (r) { return r.join(','); }).join('\n');
+        var blob = new Blob([csv], { type: 'text/csv' });
+        downloadBlob(blob, 'dhara-analysis-' + formatTimestamp() + '.csv');
+        showToast('CSV report exported successfully.', 'success');
+    }
+
+    function buildExportPayload() {
+        var ar = state.analysisResults;
+        var ra = state.riskAssessment;
+        return {
+            meta: { version: '3.0', exportedAt: new Date().toISOString(), tool: 'Dhara-Rakshak' },
+            location: { lat: state.lat, lon: state.lon, name: ar.locationName || '' },
+            siteData: state.siteData,
+            analysis: {
+                compositeFoS: ar.compositeFoS,
+                infiniteSlope: ar.infiniteSlope,
+                bishop: ar.bishop,
+                janbu: ar.janbu,
+                monteCarlo: ar.monteCarlo,
+                rainfallThreshold: ar.rainfallThreshold,
+                infiltration: ar.infiltration,
+                foundation: ar.foundation
+            },
+            risk: {
+                score: ra.compositeScore,
+                level: ra.classification.level,
+                nidmCategory: ra.classification.nidmCategory,
+                confidence: ra.confidence,
+                components: ra.components
+            },
+            mitigation: state.recommendations,
+            outcome: state.outcome
+        };
+    }
+
+    function buildCSVRows() {
+        var ar = state.analysisResults;
+        var ra = state.riskAssessment;
+        var sd = state.siteData;
+        var rows = [['Parameter', 'Value', 'Unit', 'Category']];
+        rows.push(['Latitude', state.lat, 'deg', 'Location']);
+        rows.push(['Longitude', state.lon, 'deg', 'Location']);
+        rows.push(['Location Name', '"' + (ar.locationName || '') + '"', '', 'Location']);
+        rows.push(['Slope Angle', sd.slopeAngle, 'deg', 'Terrain']);
+        rows.push(['Soil Type', '"' + (ar.soilProperties?.name || sd.soilType) + '"', '', 'Geotechnical']);
+        rows.push(['Vegetation Cover', sd.vegetationPct, '%', 'Environmental']);
+        rows.push(['Rainfall Intensity', sd.rainfallIntensity, 'mm/hr', 'Hydrological']);
+        rows.push(['Rainfall Duration', sd.rainfallDuration, 'hr', 'Hydrological']);
+        rows.push(['Saturation', sd.saturation, '%', 'Hydrological']);
+        rows.push(['FoS (Infinite Slope)', ar.infiniteSlope?.fos?.toFixed(4), '', 'Result']);
+        rows.push(['FoS (Bishop)', ar.bishop?.fos?.toFixed(4), '', 'Result']);
+        rows.push(['FoS (Janbu)', ar.janbu?.fos?.toFixed(4), '', 'Result']);
+        rows.push(['FoS (Composite)', ar.compositeFoS?.toFixed(4), '', 'Result']);
+        rows.push(['Risk Score', ra.compositeScore?.toFixed(1), '/100', 'Result']);
+        rows.push(['Risk Level', ra.classification.level, '', 'Result']);
+        rows.push(['Failure Probability', ar.monteCarlo?.probability_of_failure?.toFixed(1), '%', 'Result']);
+        rows.push(['NIDM Category', '"' + ra.classification.nidmCategory + '"', '', 'Result']);
+        rows.push(['Confidence', ra.confidence?.level || '', '', 'Result']);
+        return rows;
+    }
+
+    function downloadBlob(blob, filename) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function formatTimestamp() {
+        var d = new Date();
+        return d.getFullYear() + '' +
+            String(d.getMonth() + 1).padStart(2, '0') +
+            String(d.getDate()).padStart(2, '0') + '-' +
+            String(d.getHours()).padStart(2, '0') +
+            String(d.getMinutes()).padStart(2, '0');
+    }
+
+    // ========================================================================
+    // ANALYSIS HISTORY
+    // ========================================================================
+    function saveToHistory() {
+        if (!state.analysisComplete) return;
+        var ra = state.riskAssessment;
+        var ar = state.analysisResults;
+        var entry = {
+            id: Date.now(),
+            timestamp: new Date().toISOString(),
+            lat: state.lat,
+            lon: state.lon,
+            locationName: ar.locationName || (state.lat.toFixed(4) + ', ' + state.lon.toFixed(4)),
+            riskScore: ra.compositeScore,
+            riskLevel: ra.classification.level,
+            fos: ar.compositeFoS,
+            failureProb: ar.monteCarlo?.probability_of_failure
+        };
+        state.history.unshift(entry);
+        if (state.history.length > 50) state.history.pop();
+        try {
+            localStorage.setItem('dhara-history', JSON.stringify(state.history));
+        } catch (e) { /* quota */ }
+    }
+
+    function loadHistory() {
+        try {
+            var saved = localStorage.getItem('dhara-history');
+            if (saved) state.history = JSON.parse(saved);
+        } catch (e) { state.history = []; }
+    }
+
+    function clearHistory() {
+        state.history = [];
+        localStorage.removeItem('dhara-history');
+        renderHistoryPanel();
+        showToast('Analysis history cleared.', 'info');
+    }
+
+    function renderHistoryPanel() {
+        var container = document.getElementById('analysis-history-list');
+        if (!container) return;
+
+        if (state.history.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:20px">No analysis history yet. Run an analysis to see results here.</p>';
+            return;
+        }
+
+        var riskColors = { CRITICAL: '#D32F2F', HIGH: '#E65100', MEDIUM: '#F9A825', LOW: '#2E7D32', 'VERY LOW': '#1565C0' };
+        var html = '';
+        for (var i = 0; i < Math.min(20, state.history.length); i++) {
+            var h = state.history[i];
+            var dt = new Date(h.timestamp);
+            var dateStr = dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            var timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+            html += '<div class="history-item" onclick="DharaApp.loadHistoryEntry(' + h.id + ')">' +
+                '<div class="history-risk-dot" style="background:' + (riskColors[h.riskLevel] || '#888') + '"></div>' +
+                '<div class="history-details">' +
+                '<div class="h-location">' + (h.locationName || 'Unknown') + '</div>' +
+                '<div class="h-meta">' + h.lat.toFixed(4) + ', ' + h.lon.toFixed(4) + '</div>' +
+                '<div class="h-score">Risk: ' + (h.riskScore?.toFixed(0) || '--') + '/100 | FoS: ' + (h.fos?.toFixed(3) || '--') + ' | ' + h.riskLevel + '</div>' +
+                '</div>' +
+                '<div class="history-date">' + dateStr + '<br>' + timeStr + '</div>' +
+                '</div>';
+        }
+        container.innerHTML = html;
+    }
+
+    function loadHistoryEntry(id) {
+        var entry = state.history.find(function (h) { return h.id === id; });
+        if (!entry) return;
+        state.lat = entry.lat;
+        state.lon = entry.lon;
+        var latEl = document.getElementById('inp-lat');
+        var lonEl = document.getElementById('inp-lon');
+        if (latEl) latEl.value = entry.lat;
+        if (lonEl) lonEl.value = entry.lon;
+        navigateTo('page-input');
+        showToast('Loaded coordinates from history. Click "Run Analysis" to re-analyze.', 'info');
+    }
 
     // ========================================================================
     // NAVIGATION
@@ -84,11 +310,11 @@ const DharaApp = (function () {
         var lon = parseFloat(lonEl?.value);
 
         if (isNaN(lat) || isNaN(lon)) {
-            alert('Please enter valid latitude and longitude values.');
+            showToast('Please enter valid latitude and longitude values.', 'warning');
             return;
         }
         if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-            alert('Coordinates out of range. Latitude: -90 to 90, Longitude: -180 to 180.');
+            showToast('Coordinates out of range. Latitude: -90 to 90, Longitude: -180 to 180.', 'warning');
             return;
         }
 
@@ -283,7 +509,7 @@ const DharaApp = (function () {
 
     function applySatelliteGreen() {
         if (state.satelliteGreenPct == null) {
-            alert('Fetch satellite view first.');
+            showToast('Fetch satellite view first.', 'warning');
             return;
         }
         var slider = document.getElementById('inp-veg');
@@ -410,15 +636,19 @@ const DharaApp = (function () {
 
                 state.analysisComplete = true;
                 saveStateToStorage();
+                saveToHistory();
 
                 // Navigate to results
                 navigateTo('page-results');
                 renderResults();
                 renderLiveDataPanels();
 
+                showToast('Analysis complete — ' + (state.riskAssessment?.classification?.level || '') + ' risk detected.', 
+                    state.riskAssessment?.classification?.level === 'CRITICAL' || state.riskAssessment?.classification?.level === 'HIGH' ? 'error' : 'success', 6000);
+
             } catch (err) {
                 console.error('Analysis error:', err);
-                alert('Analysis error: ' + err.message);
+                showToast('Analysis error: ' + err.message, 'error', 8000);
             } finally {
                 hideLoading();
             }
@@ -580,7 +810,7 @@ const DharaApp = (function () {
     // ========================================================================
     function showRiskMap() {
         if (!state.analysisComplete) {
-            alert('Please run analysis first.');
+            showToast('Please run analysis first.', 'warning');
             return navigateTo('page-input');
         }
         navigateTo('page-risk-map');
@@ -634,7 +864,7 @@ const DharaApp = (function () {
     // ========================================================================
     function showVisualizer() {
         if (!state.analysisComplete) {
-            alert('Please run analysis first.');
+            showToast('Please run analysis first.', 'warning');
             return navigateTo('page-input');
         }
         navigateTo('page-visualizer');
@@ -695,7 +925,7 @@ const DharaApp = (function () {
     // ========================================================================
     function showMitigationPage() {
         if (!state.analysisComplete) {
-            alert('Please run analysis first.');
+            showToast('Please run analysis first.', 'warning');
             return navigateTo('page-input');
         }
         navigateTo('page-mitigation');
@@ -814,7 +1044,7 @@ const DharaApp = (function () {
     // ========================================================================
     function showReportPage() {
         if (!state.analysisComplete) {
-            alert('Please run analysis first.');
+            showToast('Please run analysis first.', 'warning');
             return navigateTo('page-input');
         }
         navigateTo('page-report');
@@ -833,7 +1063,7 @@ const DharaApp = (function () {
     }
 
     function downloadReport() {
-        if (!state.analysisComplete) return alert('Run analysis first.');
+        if (!state.analysisComplete) { showToast('Run analysis first.', 'warning'); return; }
         var html = ReportGenerator.generateFullReport(
             state.siteData,
             state.analysisResults,
@@ -849,6 +1079,7 @@ const DharaApp = (function () {
     // ========================================================================
     function showDashboardPage() {
         navigateTo('page-dashboard');
+        renderHistoryPanel();
         if (state.analysisComplete) {
             renderDashboardSummary();
         }
@@ -861,40 +1092,60 @@ const DharaApp = (function () {
         var ar = state.analysisResults;
         var ra = state.riskAssessment;
         var cls = ra.classification;
+        var mc = ar.monteCarlo || {};
+        var apiCount = state.liveData ? state.liveData.successCount : 0;
 
         el.innerHTML =
             '<div class="dashboard-summary">' +
-            '<div class="metric-card ' + riskClass(cls.level) + '"><div class="metric-label">Risk Score</div><div class="metric-value">' + ra.compositeScore?.toFixed(0) + '</div></div>' +
-            '<div class="metric-card ' + fosClass(ar.compositeFoS) + '"><div class="metric-label">Factor of Safety</div><div class="metric-value">' + ar.compositeFoS?.toFixed(3) + '</div></div>' +
-            '<div class="metric-card"><div class="metric-label">Failure Probability</div><div class="metric-value">' + ar.monteCarlo?.probability_of_failure?.toFixed(1) + '%</div></div>' +
-            '<div class="metric-card"><div class="metric-label">Confidence</div><div class="metric-value">' + ra.confidence?.level + '</div></div>' +
+            '<div class="metric-card animated ' + riskClass(cls.level) + '"><div class="metric-label">Risk Score</div><div class="metric-value">' + ra.compositeScore?.toFixed(0) + '/100</div><div class="metric-delta">' + cls.level + ' — ' + cls.nidmCategory + '</div></div>' +
+            '<div class="metric-card animated ' + fosClass(ar.compositeFoS) + '"><div class="metric-label">Factor of Safety</div><div class="metric-value">' + ar.compositeFoS?.toFixed(3) + '</div><div class="metric-delta">' + (ar.compositeFoS >= 1.5 ? 'Stable' : ar.compositeFoS >= 1.0 ? 'Marginal' : 'Unstable') + '</div></div>' +
+            '<div class="metric-card animated"><div class="metric-label">Failure Probability</div><div class="metric-value">' + (mc.probability_of_failure?.toFixed(1) || '--') + '%</div><div class="metric-delta">' + (mc.iterations || 2000) + ' Monte Carlo iterations</div></div>' +
+            '<div class="metric-card animated"><div class="metric-label">Confidence</div><div class="metric-value">' + (ra.confidence?.level || 'N/A') + '</div><div class="metric-delta">' + apiCount + '/6 live data sources</div></div>' +
             '</div>' +
+
+            '<div class="grid-2" style="gap:16px;margin-top:16px">' +
 
             '<div class="card">' +
             '<div class="card-header"><h3>Assessment Summary</h3></div>' +
             '<table class="data-table">' +
             '<thead><tr><th>Parameter</th><th>Value</th><th>Status</th></tr></thead>' +
             '<tbody>' +
-            '<tr><td>Location</td><td>' + state.lat?.toFixed(4) + ', ' + state.lon?.toFixed(4) + '</td><td>--</td></tr>' +
-            '<tr><td>Slope Angle</td><td>' + ar.slopeAngle + ' deg</td><td>' + (ar.slopeAngle > 35 ? 'Steep' : 'Moderate') + '</td></tr>' +
-            '<tr><td>Soil Type</td><td>' + ar.soilProperties?.name + '</td><td>' + ar.soilProperties?.classification + '</td></tr>' +
-            '<tr><td>Vegetation</td><td>' + ar.vegetation?.vegetationPct + '% -- ' + ar.vegetation?.category + '</td><td>' + ar.vegetation?.deforestationRisk + ' risk</td></tr>' +
-            '<tr><td>Rainfall Status</td><td>' + ar.rainfallThreshold?.status + '</td><td>Level ' + ar.rainfallThreshold?.level + '</td></tr>' +
-            '<tr><td>Foundation</td><td>Setback ' + ar.foundation?.actualSetback + 'm / ' + ar.foundation?.effectiveSetback + 'm required</td><td>' + (ar.foundation?.isSetbackSafe ? 'Safe' : 'Unsafe') + '</td></tr>' +
+            '<tr><td>Location</td><td>' + (ar.locationName || (state.lat?.toFixed(4) + ', ' + state.lon?.toFixed(4))) + '</td><td>' + state.lat?.toFixed(4) + ', ' + state.lon?.toFixed(4) + '</td></tr>' +
+            '<tr><td>Slope Angle</td><td>' + ar.slopeAngle + '°</td><td>' + (ar.slopeAngle > 45 ? '⚠ Very Steep' : ar.slopeAngle > 35 ? '⚠ Steep' : '✓ Moderate') + '</td></tr>' +
+            '<tr><td>Soil Type</td><td>' + (ar.soilProperties?.name || '--') + '</td><td>' + (ar.soilProperties?.classification || '--') + '</td></tr>' +
+            '<tr><td>Vegetation</td><td>' + (ar.vegetation?.vegetationPct || '--') + '% — ' + (ar.vegetation?.category || '') + '</td><td>' + (ar.vegetation?.deforestationRisk || '') + ' risk</td></tr>' +
+            '<tr><td>Rainfall Status</td><td>' + (ar.rainfallThreshold?.status || '--') + '</td><td>Level ' + (ar.rainfallThreshold?.level || '--') + '</td></tr>' +
+            '<tr><td>Foundation</td><td>Setback ' + (ar.foundation?.actualSetback || '--') + 'm / ' + (ar.foundation?.effectiveSetback || '--') + 'm</td><td>' + (ar.foundation?.isSetbackSafe ? '✓ Safe' : '⚠ Unsafe') + '</td></tr>' +
+            (ar.elevation ? '<tr><td>Elevation</td><td>' + ar.elevation + ' m (DEM)</td><td>--</td></tr>' : '') +
             '</tbody></table></div>' +
 
             '<div class="card">' +
+            '<div class="card-header"><h3>Analysis Methods</h3></div>' +
+            '<table class="data-table">' +
+            '<thead><tr><th>Method</th><th>FoS</th><th>Weight</th></tr></thead>' +
+            '<tbody>' +
+            '<tr><td>Infinite Slope (Fredlund & Rahardjo)</td><td><strong>' + (ar.infiniteSlope?.fos?.toFixed(4) || '--') + '</strong></td><td>40%</td></tr>' +
+            '<tr><td>Bishop Simplified ' + (ar.bishop?.converged ? '✓' : '(NC)') + '</td><td><strong>' + (ar.bishop?.fos?.toFixed(4) || '--') + '</strong></td><td>35%</td></tr>' +
+            '<tr><td>Janbu Simplified</td><td><strong>' + (ar.janbu?.fos?.toFixed(4) || '--') + '</strong></td><td>25%</td></tr>' +
+            '<tr style="background:var(--primary);color:#fff;font-weight:700"><td>Composite FoS</td><td>' + (ar.compositeFoS?.toFixed(4) || '--') + '</td><td>100%</td></tr>' +
+            '</tbody></table>' +
+            '<div style="font-size:0.75rem;color:var(--text-muted);padding:8px;border-top:1px solid var(--border)">Monte Carlo: μ=' + (mc.mean_fos?.toFixed(3) || '--') + ', σ=' + (mc.std_fos?.toFixed(3) || '--') + ', P(fail)=' + (mc.probability_of_failure?.toFixed(1) || '--') + '%</div>' +
+            '</div>' +
+
+            '</div>' +
+
+            '<div class="card" style="margin-top:16px">' +
             '<div class="card-header"><h3>Workflow Status</h3></div>' +
             '<div class="workflow-timeline">' +
             '<div class="wf-step done"><div class="wf-num">1</div><div class="wf-label">Survey</div></div>' +
-            '<div class="wf-step done"><div class="wf-num">2</div><div class="wf-label">Upload</div></div>' +
+            '<div class="wf-step done"><div class="wf-num">2</div><div class="wf-label">Data</div></div>' +
             '<div class="wf-step done"><div class="wf-num">3</div><div class="wf-label">Analysis</div></div>' +
-            '<div class="wf-step active"><div class="wf-num">4</div><div class="wf-label">Approval</div></div>' +
+            '<div class="wf-step active"><div class="wf-num">4</div><div class="wf-label">Review</div></div>' +
             '<div class="wf-step"><div class="wf-num">5</div><div class="wf-label">Execution</div></div>' +
             '<div class="wf-step"><div class="wf-num">6</div><div class="wf-label">Monitoring</div></div>' +
             '</div>' +
             '<div class="alert alert-warning" style="margin-top:12px">' +
-            '<div>Final engineering approval required from certified geotechnical engineer before execution of any mitigation measures.</div>' +
+            '<div>⚠ Final engineering approval required from a certified geotechnical engineer (IS 14496 / IRC:SP:48) before execution.</div>' +
             '</div></div>';
     }
 
@@ -1063,8 +1314,9 @@ const DharaApp = (function () {
     }
 
     function init() {
-        // Restore saved state first
+        // Restore saved state and history
         restoreStateFromStorage();
+        loadHistory();
 
         // Set up navigation
         document.querySelectorAll('.sidebar-nav-item').forEach(function (item) {
@@ -1131,6 +1383,11 @@ const DharaApp = (function () {
         showDashboardPage: showDashboardPage,
         downloadReport: downloadReport,
         refreshVoicePanel: refreshVoicePanel,
+        exportJSON: exportJSON,
+        exportCSV: exportCSV,
+        clearHistory: clearHistory,
+        loadHistoryEntry: loadHistoryEntry,
+        showToast: showToast,
         state: state
     };
 })();

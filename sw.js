@@ -7,7 +7,7 @@
  * ============================================================================
  */
 
-const CACHE_NAME = 'dhara-rakshak-v2.1';
+const CACHE_NAME = 'dhara-rakshak-v3.0';
 const STATIC_ASSETS = [
     './',
     './index.html',

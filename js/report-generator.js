@@ -62,7 +62,7 @@ const ReportGenerator = (function () {
         <h1>DHARA-RAKSHAK</h1>
         <div class="subtitle">Integrated Landslide Risk Assessment & Mitigation Report</div>
         <div class="meta">
-            Generated: ${dateStr} at ${timeStr} | System Version: 2.0 | Classification: OFFICIAL<br>
+            Generated: ${dateStr} at ${timeStr} | System Version: 3.0 | Classification: OFFICIAL<br>
             Aligned: NIDM 2019 • IS 14496 • IRC:SP:48 • BIS Codes
         </div>
     </div>

@@ -1,7 +1,7 @@
 {
   "name": "Dhara-Rakshak — Landslide Risk Assessment",
   "short_name": "Dhara-Rakshak",
-  "description": "AI-powered landslide risk assessment tool with real-time weather, seismic, and soil data from 6 free APIs. Multi-method geotechnical analysis (Bishop, Janbu, Monte Carlo) aligned to Indian Standards.",
+  "description": "Advanced AI-powered landslide risk assessment and decision support tool. Integrates 6 live APIs (weather, seismic, elevation, soil, geocoding, historical rainfall) with multi-method geotechnical analysis (Infinite Slope, Bishop, Janbu, Monte Carlo) aligned to Indian Standards (IS 14496, NIDM 2019). v3.0.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0A1628",
