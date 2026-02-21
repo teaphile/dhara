@@ -413,6 +413,82 @@ const MapModule = (function () {
     }
 
     // ========================================================================
+    // EARTHQUAKE MARKERS ON RISK MAP (from USGS live data)
+    // ========================================================================
+    let earthquakeLayerGroup = null;
+
+    function addEarthquakeMarkers(mapInstance, earthquakeData) {
+        if (!mapInstance || !earthquakeData || !earthquakeData.events) return;
+
+        // Remove old markers
+        if (earthquakeLayerGroup) {
+            mapInstance.removeLayer(earthquakeLayerGroup);
+        }
+        earthquakeLayerGroup = L.layerGroup();
+
+        earthquakeData.events.forEach(function(eq) {
+            var color = eq.magnitude >= 5 ? '#F44336' :
+                        eq.magnitude >= 4 ? '#FF9800' :
+                        eq.magnitude >= 3 ? '#FFC107' : '#4CAF50';
+            var radius = Math.max(4, eq.magnitude * 4);
+
+            var marker = L.circleMarker([eq.lat, eq.lon], {
+                radius: radius,
+                fillColor: color,
+                color: '#333',
+                weight: 1,
+                opacity: 0.9,
+                fillOpacity: 0.7
+            });
+
+            marker.bindPopup(
+                '<div style="min-width:150px">' +
+                '<strong style="font-size:14px">M ' + eq.magnitude.toFixed(1) + '</strong><br>' +
+                '<span style="color:#666">' + (eq.place || 'Unknown') + '</span><br>' +
+                '<span style="font-size:11px">Depth: ' + (eq.depth || 0).toFixed(1) + ' km</span><br>' +
+                '<span style="font-size:11px">Distance: ' + eq.distance.toFixed(0) + ' km</span><br>' +
+                '<span style="font-size:10px;color:#999">' + (eq.time ? new Date(eq.time).toLocaleDateString() : '') + '</span>' +
+                '</div>'
+            );
+
+            earthquakeLayerGroup.addLayer(marker);
+        });
+
+        earthquakeLayerGroup.addTo(mapInstance);
+    }
+
+    // ========================================================================
+    // WEATHER OVERLAY (wind direction indicators)
+    // ========================================================================
+    let weatherOverlayGroup = null;
+
+    function addWeatherOverlay(mapInstance, weatherData, lat, lon) {
+        if (!mapInstance || !weatherData || !weatherData.current) return;
+
+        if (weatherOverlayGroup) {
+            mapInstance.removeLayer(weatherOverlayGroup);
+        }
+        weatherOverlayGroup = L.layerGroup();
+
+        var w = weatherData.current;
+        var icon = L.divIcon({
+            className: 'weather-map-icon',
+            html: '<div style="background:rgba(33,150,243,0.9);color:#fff;padding:4px 8px;border-radius:6px;font-size:11px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3)">' +
+                  '<strong>' + w.temperature + '°C</strong> | ' +
+                  w.humidity + '% | ' + w.windSpeed + ' km/h' +
+                  (w.precipitation > 0 ? ' | 🌧 ' + w.precipitation + 'mm' : '') +
+                  '</div>',
+            iconSize: [200, 30],
+            iconAnchor: [100, 35]
+        });
+
+        L.marker([lat, lon], { icon: icon, interactive: false })
+            .addTo(weatherOverlayGroup);
+
+        weatherOverlayGroup.addTo(mapInstance);
+    }
+
+    // ========================================================================
     // PUBLIC API
     // ========================================================================
     return {
@@ -429,7 +505,11 @@ const MapModule = (function () {
 
         // Satellite & green cover
         initSatelliteView,
-        estimateGreenPercentage
+        estimateGreenPercentage,
+
+        // Live data overlays
+        addEarthquakeMarkers,
+        addWeatherOverlay
     };
 })();
 

@@ -44,23 +44,27 @@ const RiskClassifier = (function () {
             riskModifier = 0,
             fieldObservations = {},
             slopeAngle = 35,
-            effectiveSaturation = 50
+            effectiveSaturation = 50,
+            // Live data
+            liveEarthquakes = null,
+            weatherSeverity = 0,
+            antecedentRainfallModifier = 0
         } = analysisResults;
 
         // ----------------------------------------------------------------
         // COMPONENT SCORING (each 0–100, higher = more risk)
         // ----------------------------------------------------------------
 
-        // 1. GEOTECHNICAL STABILITY SCORE (Weight: 35%)
+        // 1. GEOTECHNICAL STABILITY SCORE (Weight: 30%)
         const fosScore = fosToRiskScore(compositeFoS);
 
-        // 2. RAINFALL / HYDROLOGICAL SCORE (Weight: 25%)
+        // 2. RAINFALL / HYDROLOGICAL SCORE (Weight: 20%)
         const rainfallScore = rainfallToRiskScore(rainfallThreshold);
 
-        // 3. VEGETATION / ENVIRONMENTAL SCORE (Weight: 15%)
+        // 3. VEGETATION / ENVIRONMENTAL SCORE (Weight: 12%)
         const vegScore = vegetationToRiskScore(vegetation);
 
-        // 4. STRUCTURAL PROXIMITY SCORE (Weight: 10%)
+        // 4. STRUCTURAL PROXIMITY SCORE (Weight: 8%)
         const structScore = structuralToRiskScore(foundation);
 
         // 5. TERRAIN SCORE (Weight: 10%)
@@ -69,16 +73,24 @@ const RiskClassifier = (function () {
         // 6. FIELD OBSERVATION SCORE (Weight: 5%)
         const fieldScore = fieldObsToRiskScore(fieldObservations);
 
+        // 7. SEISMIC SCORE (Weight: 10%) — from USGS live data
+        const seismicScore = seismicToRiskScore(liveEarthquakes);
+
+        // 8. WEATHER SEVERITY SCORE (Weight: 5%) — from Open-Meteo live data
+        const weatherScore = Math.min(100, weatherSeverity || 0);
+
         // ----------------------------------------------------------------
-        // WEIGHTED COMPOSITE
+        // WEIGHTED COMPOSITE (total weights = 1.0)
         // ----------------------------------------------------------------
         const weights = {
-            geotechnical: 0.35,
-            rainfall: 0.25,
-            vegetation: 0.15,
-            structural: 0.10,
+            geotechnical: 0.30,
+            rainfall: 0.20,
+            vegetation: 0.12,
+            structural: 0.08,
             terrain: 0.10,
-            field: 0.05
+            field: 0.05,
+            seismic: 0.10,
+            weather: 0.05
         };
 
         const compositeScore = (
@@ -87,7 +99,9 @@ const RiskClassifier = (function () {
             vegScore * weights.vegetation +
             structScore * weights.structural +
             terrainScore * weights.terrain +
-            fieldScore * weights.field
+            fieldScore * weights.field +
+            seismicScore * weights.seismic +
+            weatherScore * weights.weather
         );
 
         // Apply risk modifier from field observations (capped)
@@ -112,12 +126,24 @@ const RiskClassifier = (function () {
         // ----------------------------------------------------------------
         const confidence = calculateConfidence(analysisResults);
 
+        // Boost confidence if live data was used
+        var liveDataBoost = 0;
+        if (liveEarthquakes) liveDataBoost += 2;
+        if (weatherSeverity > 0) liveDataBoost += 2;
+        if (analysisResults.dataSourcesUsed) {
+            var ds = analysisResults.dataSourcesUsed;
+            if (ds.soilGrids) liveDataBoost += 3;
+            if (ds.openMeteoWeather) liveDataBoost += 2;
+            if (ds.openMeteoHistorical) liveDataBoost += 2;
+            if (ds.openMeteoElevation) liveDataBoost += 2;
+        }
+
         return {
             // Composite
             compositeScore: parseFloat(adjustedScore.toFixed(1)),
             classification: classification,
             probabilityIndex: probabilityIndex,
-            confidence: confidence,
+            confidence: Math.min(100, confidence + liveDataBoost),
 
             // Component breakdown
             components: {
@@ -156,16 +182,53 @@ const RiskClassifier = (function () {
                     weight: weights.field,
                     weighted: parseFloat((fieldScore * weights.field).toFixed(1)),
                     input: formatFieldObs(fieldObservations)
+                },
+                seismic: {
+                    score: parseFloat(seismicScore.toFixed(1)),
+                    weight: weights.seismic,
+                    weighted: parseFloat((seismicScore * weights.seismic).toFixed(1)),
+                    input: liveEarthquakes ? `${liveEarthquakes.totalEvents} events, max M${liveEarthquakes.maxMagnitude.toFixed(1)}` : 'No live data'
+                },
+                weather: {
+                    score: parseFloat(weatherScore.toFixed(1)),
+                    weight: weights.weather,
+                    weighted: parseFloat((weatherScore * weights.weather).toFixed(1)),
+                    input: `Severity = ${weatherScore}/100`
                 }
             },
 
             // Audit trail
             weights: weights,
             riskModifier: riskModifier,
-            method: 'NIDM-aligned Multi-Parameter Weighted Score',
+            method: 'NIDM-aligned Multi-Parameter Weighted Score (Live-Data Enhanced)',
+            dataSources: analysisResults.dataSourcesUsed || {},
             disclaimer: 'Risk classification is for decision support. Certified geotechnical engineer must validate before action.',
             timestamp: new Date().toISOString()
         };
+    }
+
+    // ========================================================================
+    // SEISMIC RISK SCORING (from USGS live data)
+    // ========================================================================
+    function seismicToRiskScore(earthquakeData) {
+        if (!earthquakeData) return 20; // Default moderate-low if no data
+
+        var score = 0;
+        // Factor 1: Number of events
+        score += Math.min(30, earthquakeData.totalEvents * 0.5);
+
+        // Factor 2: Maximum magnitude
+        if (earthquakeData.maxMagnitude >= 6) score += 40;
+        else if (earthquakeData.maxMagnitude >= 5) score += 30;
+        else if (earthquakeData.maxMagnitude >= 4) score += 20;
+        else if (earthquakeData.maxMagnitude >= 3) score += 10;
+
+        // Factor 3: Proximity (nearest earthquake)
+        if (earthquakeData.nearestDistance < 50) score += 30;
+        else if (earthquakeData.nearestDistance < 100) score += 20;
+        else if (earthquakeData.nearestDistance < 200) score += 10;
+
+        return Math.min(100, score);
     }
 
     // ========================================================================

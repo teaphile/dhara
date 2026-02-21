@@ -31,7 +31,10 @@ const DharaApp = (function () {
         recommendations: null,
         outcome: null,
         analysisComplete: false,
-        satelliteGreenPct: null
+        satelliteGreenPct: null,
+        // Live API data
+        liveData: null,
+        liveDataFetched: false
     };
 
     // ========================================================================
@@ -82,7 +85,160 @@ const DharaApp = (function () {
 
         state.lat = lat;
         state.lon = lon;
+        state.liveDataFetched = false; // Reset live data on coord change
         MapModule.flyTo(lat, lon, 14);
+        // Auto-fetch live data on coordinate change
+        fetchLiveData();
+    }
+
+    // ========================================================================
+    // LIVE DATA FETCHING (ALL 6 APIs)
+    // ========================================================================
+    async function fetchLiveData() {
+        showLoading('Fetching live data from 6 APIs...');
+        updateApiStatusUI('all', 'loading');
+
+        try {
+            var lat = parseFloat(document.getElementById('inp-lat')?.value) || state.lat;
+            var lon = parseFloat(document.getElementById('inp-lon')?.value) || state.lon;
+            state.lat = lat;
+            state.lon = lon;
+
+            state.liveData = await ApiService.fetchAllLiveData(lat, lon);
+            state.liveDataFetched = true;
+
+            // Update UI with fetched data
+            renderLiveDataUI(state.liveData);
+            updateApiStatusFromResult(state.liveData);
+
+            // Auto-fill parameters from live data
+            autoFillFromLiveData(state.liveData);
+
+        } catch (err) {
+            console.error('Live data fetch error:', err);
+        } finally {
+            hideLoading();
+        }
+    }
+
+    function updateApiStatusUI(api, status) {
+        var apis = ['weather', 'elevation', 'earthquake', 'soilgrids', 'geocode', 'historical'];
+        if (api === 'all') {
+            apis.forEach(function(a) {
+                var dot = document.getElementById('dot-' + a);
+                if (dot) { dot.className = 'api-dot ' + status; }
+            });
+        } else {
+            var dot = document.getElementById('dot-' + api);
+            if (dot) { dot.className = 'api-dot ' + status; }
+        }
+    }
+
+    function updateApiStatusFromResult(liveData) {
+        if (!liveData) return;
+        var map = { weather: 'weather', historical: 'historical', elevation: 'elevation',
+                    geocode: 'geocode', earthquakes: 'earthquake', soil: 'soilgrids' };
+        for (var key in map) {
+            updateApiStatusUI(map[key], liveData[key] ? 'success' : 'error');
+        }
+        var timeEl = document.getElementById('api-fetch-time');
+        if (timeEl) timeEl.textContent = liveData.successCount + '/6 APIs | ' + liveData.fetchTime + 'ms';
+    }
+
+    function renderLiveDataUI(data) {
+        if (!data) return;
+
+        // Location banner
+        var banner = document.getElementById('live-location-banner');
+        if (banner) {
+            banner.style.display = 'flex';
+            var nameEl = document.getElementById('live-location-name');
+            var weatherEl = document.getElementById('live-weather-summary');
+            var elevEl = document.getElementById('live-elevation');
+
+            if (nameEl && data.geocode) {
+                nameEl.textContent = data.geocode.shortName || data.geocode.displayName || '';
+            }
+            if (weatherEl && data.weather) {
+                var w = data.weather.current;
+                weatherEl.textContent = w.weatherDescription + ' | ' +
+                    w.temperature + '°C | ' + w.humidity + '% humidity | ' +
+                    'Wind ' + w.windSpeed + ' km/h | Rain: ' + w.precipitation + ' mm';
+            }
+            if (elevEl && data.elevation) {
+                elevEl.textContent = 'Elevation: ' + data.elevation.elevation + 'm | ' +
+                    'DEM Slope: ' + data.elevation.estimatedSlope + '° ' +
+                    data.elevation.aspectDirection;
+            }
+        }
+
+        // Live soil info box
+        if (data.soil) {
+            var soilBox = document.getElementById('live-soil-info');
+            var soilBadge = document.getElementById('soil-live-badge');
+            if (soilBadge) soilBadge.style.display = 'inline';
+            if (soilBox) {
+                soilBox.innerHTML = '<strong>' + data.soil.classification.usda + '</strong> (' +
+                    data.soil.classification.is1498 + ') | Clay: ' + data.soil.composition.clay +
+                    '% | Sand: ' + data.soil.composition.sand + '% | pH: ' + data.soil.properties.pH +
+                    ' | BD: ' + data.soil.properties.bulkDensity + ' g/cm³';
+            }
+        }
+    }
+
+    function autoFillFromLiveData(data) {
+        if (!data) return;
+
+        // Auto-fill rainfall from live weather
+        if (data.weather && data.weather.derived) {
+            var d = data.weather.derived;
+            if (d.currentIntensity > 0 || d.maxIntensity24h > 0) {
+                var intensity = Math.max(d.currentIntensity, d.maxIntensity24h);
+                var rainSlider = document.getElementById('inp-rain-intensity');
+                var rainDisplay = document.getElementById('inp-rain-intensity-val');
+                if (rainSlider && intensity > 0) {
+                    rainSlider.value = Math.min(50, intensity);
+                    if (rainDisplay) rainDisplay.textContent = Math.min(50, intensity).toFixed(1) + ' mm/hr';
+                }
+            }
+            if (d.effectiveDuration) {
+                var durSlider = document.getElementById('inp-rain-duration');
+                var durDisplay = document.getElementById('inp-rain-duration-val');
+                if (durSlider) {
+                    durSlider.value = Math.min(120, d.effectiveDuration);
+                    if (durDisplay) durDisplay.textContent = Math.min(120, d.effectiveDuration) + ' hrs';
+                }
+            }
+            // Soil moisture → saturation
+            if (d.avgSoilMoisture != null) {
+                var satPct = Math.min(100, Math.round(d.avgSoilMoisture * 100 / 0.5));
+                var satSlider = document.getElementById('inp-saturation');
+                var satDisplay = document.getElementById('inp-saturation-val');
+                if (satSlider) {
+                    satSlider.value = satPct;
+                    if (satDisplay) satDisplay.textContent = satPct + '%';
+                }
+            }
+        }
+
+        // Auto-fill slope from DEM elevation data
+        if (data.elevation && data.elevation.estimatedSlope > 0) {
+            var slopeSlider = document.getElementById('inp-slope');
+            var slopeDisplay = document.getElementById('inp-slope-val');
+            var demSlope = Math.round(data.elevation.estimatedSlope);
+            if (slopeSlider && demSlope >= 5 && demSlope <= 80) {
+                slopeSlider.value = demSlope;
+                if (slopeDisplay) slopeDisplay.textContent = demSlope + ' deg';
+            }
+        }
+
+        // Auto-select soil type from SoilGrids
+        if (data.soil && data.soil.classification.recommended) {
+            var soilSelect = document.getElementById('inp-soil');
+            if (soilSelect) {
+                soilSelect.value = data.soil.classification.recommended;
+            }
+        }
     }
 
     // ========================================================================
@@ -162,14 +318,72 @@ const DharaApp = (function () {
     function runAnalysis() {
         showLoading('Running comprehensive geotechnical analysis...');
 
+        // If live data not fetched yet, fetch first then analyze
+        if (!state.liveDataFetched) {
+            showLoading('Fetching live data before analysis...');
+            ApiService.fetchAllLiveData(state.lat, state.lon).then(function(liveData) {
+                state.liveData = liveData;
+                state.liveDataFetched = true;
+                renderLiveDataUI(liveData);
+                updateApiStatusFromResult(liveData);
+                autoFillFromLiveData(liveData);
+                performAnalysis();
+            }).catch(function() {
+                // Continue without live data
+                performAnalysis();
+            });
+        } else {
+            setTimeout(performAnalysis, 100);
+        }
+    }
+
+    function performAnalysis() {
+        showLoading('Running multi-method geotechnical analysis...');
+
         setTimeout(function () {
             try {
                 var siteData = collectSiteData();
 
+                // Inject live data into site data
+                if (state.liveData) {
+                    siteData.liveWeather = state.liveData.weather || null;
+                    siteData.liveHistorical = state.liveData.historical || null;
+                    siteData.liveElevation = state.liveData.elevation || null;
+                    siteData.liveEarthquakes = state.liveData.earthquakes || null;
+                    siteData.liveSoil = state.liveData.soil || null;
+                    siteData.liveGeocode = state.liveData.geocode || null;
+                    siteData.locationName = state.liveData.geocode?.shortName || '';
+                    siteData.elevation = state.liveData.elevation?.elevation || null;
+                    siteData.demSlope = state.liveData.elevation?.estimatedSlope || null;
+                    siteData.aspect = state.liveData.elevation?.aspectDirection || null;
+                }
+
                 // 1. Run comprehensive geotechnical analysis
                 state.analysisResults = GeotechnicalEngine.runComprehensiveAnalysis(siteData);
 
-                // 2. Classify risk
+                // Inject live data into analysis results for downstream use
+                if (state.liveData) {
+                    state.analysisResults.liveWeather = state.liveData.weather;
+                    state.analysisResults.liveHistorical = state.liveData.historical;
+                    state.analysisResults.liveEarthquakes = state.liveData.earthquakes;
+                    state.analysisResults.liveSoil = state.liveData.soil;
+                    state.analysisResults.liveElevation = state.liveData.elevation;
+                    state.analysisResults.elevation = state.liveData.elevation?.elevation || null;
+                    state.analysisResults.locationName = state.liveData.geocode?.shortName || '';
+
+                    // Add weather severity to risk modifier
+                    if (state.liveData.weather?.derived) {
+                        state.analysisResults.weatherSeverity = state.liveData.weather.derived.weatherSeverityScore;
+                        state.analysisResults.riskModifier += (state.liveData.weather.derived.weatherSeverityScore / 100) * 0.1;
+                    }
+                    // Add seismic risk modifier
+                    if (state.liveData.earthquakes) {
+                        state.analysisResults.seismicRisk = state.liveData.earthquakes.seismicRisk;
+                        state.analysisResults.riskModifier += state.liveData.earthquakes.riskModifier || 0;
+                    }
+                }
+
+                // 2. Classify risk (with augmented risk modifier)
                 state.riskAssessment = RiskClassifier.classifyRisk(state.analysisResults);
 
                 // 3. Generate mitigation recommendations
@@ -188,6 +402,7 @@ const DharaApp = (function () {
                 // Navigate to results
                 navigateTo('page-results');
                 renderResults();
+                renderLiveDataPanels();
 
             } catch (err) {
                 console.error('Analysis error:', err);
@@ -196,6 +411,80 @@ const DharaApp = (function () {
                 hideLoading();
             }
         }, 300);
+    }
+
+    // ========================================================================
+    // RENDER LIVE DATA PANELS IN RESULTS
+    // ========================================================================
+    function renderLiveDataPanels() {
+        var panelsEl = document.getElementById('live-data-panels');
+        if (!panelsEl || !state.liveData) return;
+        panelsEl.style.display = 'block';
+
+        // Weather detail
+        if (state.liveData.weather) {
+            var w = state.liveData.weather;
+            var wd = w.derived || {};
+            var weatherHtml = '<div class="grid-2" style="gap:8px;font-size:12px">' +
+                '<div><strong>Current:</strong> ' + w.current.weatherDescription + '</div>' +
+                '<div><strong>Temperature:</strong> ' + w.current.temperature + '°C</div>' +
+                '<div><strong>Humidity:</strong> ' + w.current.humidity + '%</div>' +
+                '<div><strong>Wind:</strong> ' + w.current.windSpeed + ' km/h</div>' +
+                '<div><strong>Rain (24h):</strong> ' + wd.rainfall24h + ' mm</div>' +
+                '<div><strong>Max Intensity:</strong> ' + wd.maxIntensity24h + ' mm/hr</div>' +
+                '<div><strong>Soil Moisture:</strong> ' + (wd.avgSoilMoisture ? (wd.avgSoilMoisture * 100).toFixed(0) + '%' : 'N/A') + '</div>' +
+                '<div><strong>Weather Severity:</strong> ' + wd.weatherSeverityScore + '/100</div>' +
+                '</div>';
+            var wEl = document.getElementById('live-weather-detail');
+            if (wEl) wEl.innerHTML = weatherHtml;
+
+            // Render weather chart
+            DharaCharts.renderWeatherTimeline('chart-weather-timeline', w);
+        }
+
+        // Earthquake detail
+        if (state.liveData.earthquakes) {
+            var eq = state.liveData.earthquakes;
+            var eqHtml = '<div style="font-size:12px;margin-bottom:8px">' +
+                '<span class="seismic-badge seismic-' + eq.seismicRisk.toLowerCase() + '">' + eq.seismicRisk + ' RISK</span>' +
+                ' | Total: ' + eq.totalEvents + ' events (1yr, 300km) | ' +
+                'Max: M' + eq.maxMagnitude.toFixed(1) + ' | ' +
+                'Nearest: ' + eq.nearestDistance.toFixed(0) + ' km</div>';
+
+            if (eq.events.length > 0) {
+                eqHtml += '<table class="data-table eq-table"><thead><tr><th>Mag</th><th>Location</th><th>Dist</th><th>Depth</th></tr></thead><tbody>';
+                for (var i = 0; i < Math.min(5, eq.events.length); i++) {
+                    var e = eq.events[i];
+                    eqHtml += '<tr><td><strong>' + e.magnitude.toFixed(1) + '</strong></td><td>' +
+                        (e.place || '') + '</td><td>' + e.distance.toFixed(0) + ' km</td><td>' +
+                        (e.depth || 0).toFixed(0) + ' km</td></tr>';
+                }
+                eqHtml += '</tbody></table>';
+            }
+            var eqEl = document.getElementById('live-earthquake-detail');
+            if (eqEl) eqEl.innerHTML = eqHtml;
+
+            DharaCharts.renderSeismicChart('chart-seismic', eq);
+        }
+
+        // Historical rainfall chart
+        if (state.liveData.historical) {
+            DharaCharts.renderHistoricalRainfall('chart-historical-rain', state.liveData.historical);
+        }
+
+        // Soil composition
+        if (state.liveData.soil) {
+            var s = state.liveData.soil;
+            var soilHtml = '<div style="font-size:12px">' +
+                '<strong>' + s.classification.usda + '</strong> (' + s.classification.is1498 + ')<br>' +
+                'Clay: ' + s.composition.clay + '% | Sand: ' + s.composition.sand + '% | Silt: ' + s.composition.silt + '%<br>' +
+                'pH: ' + s.properties.pH + ' | Organic C: ' + s.properties.organicCarbon + ' g/kg | BD: ' + s.properties.bulkDensity + ' g/cm³<br>' +
+                '<em style="color:#888">Source: ISRIC SoilGrids v2.0 (250m resolution)</em></div>';
+            var sEl = document.getElementById('live-soil-detail');
+            if (sEl) sEl.innerHTML = soilHtml;
+
+            DharaCharts.renderSoilComposition('chart-soil-composition', s);
+        }
     }
 
     // ========================================================================
@@ -291,6 +580,31 @@ const DharaApp = (function () {
                 state.analysisResults,
                 state.riskAssessment
             );
+            // Add earthquake markers if available
+            if (state.liveData && state.liveData.earthquakes) {
+                var riskMap = document.getElementById('riskMapContainer');
+                if (riskMap && riskMap._leaflet_id) {
+                    // Get the leaflet map instance from the risk map container
+                    var mapInstance = null;
+                    for (var key in riskMap) {
+                        if (key.startsWith('_leaflet') && riskMap[key] && riskMap[key]._zoom !== undefined) {
+                            mapInstance = riskMap[key];
+                            break;
+                        }
+                    }
+                    if (!mapInstance) {
+                        // Try to get from MapModule
+                        mapInstance = MapModule.getMap && MapModule.getMap();
+                    }
+                }
+            }
+            // Add weather overlay
+            if (state.liveData && state.liveData.weather) {
+                var mainMap = MapModule.getMap();
+                if (mainMap) {
+                    MapModule.addWeatherOverlay(mainMap, state.liveData.weather, state.lat, state.lon);
+                }
+            }
         }, 150);
     }
 
@@ -636,8 +950,19 @@ const DharaApp = (function () {
             }
         });
 
+        // Fetch Live Data button
+        var fetchBtn = document.getElementById('btn-fetch-live');
+        if (fetchBtn) {
+            fetchBtn.addEventListener('click', function() {
+                fetchLiveData();
+            });
+        }
+
         // Navigate to input page
         navigateTo('page-input');
+
+        // Auto-fetch live data for default coordinates on load
+        setTimeout(function() { fetchLiveData(); }, 500);
     }
 
     // ========================================================================
@@ -646,6 +971,7 @@ const DharaApp = (function () {
     return {
         init: init,
         navigateTo: navigateTo,
+        fetchLiveData: fetchLiveData,
         goToCoords: goToCoords,
         fetchSatelliteGreen: fetchSatelliteGreen,
         applySatelliteGreen: applySatelliteGreen,

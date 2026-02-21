@@ -881,11 +881,72 @@ const GeotechnicalEngine = (function () {
             cracks = false,
             seepage = false,
             pastLandslides = false,
-            construction = false
+            construction = false,
+            // Live data from APIs
+            liveWeather = null,
+            liveHistorical = null,
+            liveElevation = null,
+            liveEarthquakes = null,
+            liveSoil = null,
+            liveGeocode = null,
+            demSlope = null,
+            elevation = null
         } = siteData;
 
-        // Get soil properties
-        const soil = SOIL_DATABASE[soilType] || SOIL_DATABASE['clayey_sand'];
+        // Get soil properties — prefer live SoilGrids data if available
+        let soil = SOIL_DATABASE[soilType] || SOIL_DATABASE['clayey_sand'];
+
+        // Override soil params with real SoilGrids engineering properties
+        if (liveSoil && liveSoil.engineeringProps) {
+            var ep = liveSoil.engineeringProps;
+            soil = Object.assign({}, soil, {
+                name: soil.name + ' [SoilGrids-enhanced]',
+                cohesion: { mean: ep.estimatedCohesion || soil.cohesion.mean, stddev: soil.cohesion.stddev, unit: 'kPa' },
+                friction: { mean: ep.estimatedFriction || soil.friction.mean, stddev: soil.friction.stddev, unit: '°' },
+                unitWeight: { mean: ep.estimatedUnitWeight || soil.unitWeight.mean, stddev: soil.unitWeight.stddev, unit: 'kN/m³' },
+                permeability: { mean: ep.estimatedPermeability || soil.permeability.mean, unit: 'm/s' },
+                porosity: ep.estimatedPorosity || soil.porosity,
+                classification: soil.classification + ' | SoilGrids: ' + (liveSoil.classification ? liveSoil.classification.usda : '')
+            });
+        }
+
+        // Use DEM slope if available and user hasn't manually overridden
+        var effectiveSlope = slopeAngle;
+        if (demSlope && demSlope > 0 && Math.abs(demSlope - 35) > 1) {
+            // Blend DEM slope with user input (DEM takes 60% weight for better accuracy)
+            effectiveSlope = Math.round(demSlope * 0.6 + slopeAngle * 0.4);
+        }
+
+        // Override rainfall params with live weather if more severe
+        var effectiveRainIntensity = rainfallIntensity;
+        var effectiveRainDuration = rainfallDuration;
+        var effectiveSat = saturation;
+
+        if (liveWeather && liveWeather.derived) {
+            var d = liveWeather.derived;
+            effectiveRainIntensity = Math.max(rainfallIntensity, d.currentIntensity || 0, d.maxIntensity24h || 0);
+            if (d.effectiveDuration > 0) {
+                effectiveRainDuration = Math.max(rainfallDuration, d.effectiveDuration);
+            }
+            if (d.avgSoilMoisture) {
+                var liveSatPct = Math.min(100, Math.round(d.avgSoilMoisture * 100 / 0.5));
+                effectiveSat = Math.max(saturation, liveSatPct);
+            }
+        }
+
+        // Antecedent rainfall modifier from historical data
+        var antecedentModifier = 0;
+        if (liveHistorical) {
+            var recentRain = liveHistorical.totalRainfall || 0;
+            if (recentRain > 500) antecedentModifier = 0.2;
+            else if (recentRain > 300) antecedentModifier = 0.15;
+            else if (recentRain > 150) antecedentModifier = 0.1;
+            else if (recentRain > 50) antecedentModifier = 0.05;
+            // Also boost saturation based on recent rainfall
+            if (recentRain > 100) {
+                effectiveSat = Math.min(100, effectiveSat + Math.round(recentRain / 50));
+            }
+        }
 
         // Crack reduction factor
         const crackReduction = cracks ? 0.25 : 0;
@@ -901,13 +962,13 @@ const GeotechnicalEngine = (function () {
             'blocked': 1.15
         }[drainageCondition] || 1.0;
 
-        const effectiveSaturation = Math.min(100, saturation * drainageSatModifier);
+        const effectiveSaturation = Math.min(100, effectiveSat * drainageSatModifier);
 
         // 1. Infinite Slope Analysis
         const infiniteSlopeResult = infiniteSlope({
             cohesion: soil.cohesion.mean,
             frictionAngle: soil.friction.mean,
-            slopeAngle: slopeAngle,
+            slopeAngle: effectiveSlope,
             unitWeight: soil.unitWeight.mean,
             depth: DEFAULT_DEPTH,
             saturation: effectiveSaturation,
@@ -919,7 +980,7 @@ const GeotechnicalEngine = (function () {
         const slices = generateSlices({
             cohesion: soil.cohesion.mean,
             frictionAngle: soil.friction.mean,
-            slopeAngle: slopeAngle,
+            slopeAngle: effectiveSlope,
             unitWeight: soil.unitWeight.mean,
             depth: DEFAULT_DEPTH,
             saturation: effectiveSaturation
@@ -930,29 +991,29 @@ const GeotechnicalEngine = (function () {
         const janbuResult = janbuSimplified(slices);
 
         // 4. Rainfall Threshold
-        const idResult = checkIDThreshold(rainfallIntensity, rainfallDuration);
+        const idResult = checkIDThreshold(effectiveRainIntensity, effectiveRainDuration);
 
         // 5. Infiltration Analysis
         const infiltrationResult = greenAmptInfiltration({
             K: soil.permeability.mean,
-            theta_i: soil.porosity * (1 - saturation / 100),
+            theta_i: soil.porosity * (1 - effectiveSat / 100),
             theta_s: soil.porosity,
-            rainfall_rate: rainfallIntensity,
-            duration: rainfallDuration
+            rainfall_rate: effectiveRainIntensity,
+            duration: effectiveRainDuration
         });
 
         // 6. Foundation Safety
         const foundationResult = foundationSafetyCheck({
-            slopeAngle: slopeAngle,
+            slopeAngle: effectiveSlope,
             distanceFromCrest: houseDistance,
-            slopeHeight: DEFAULT_DEPTH / Math.sin(slopeAngle * Math.PI / 180) * Math.cos(slopeAngle * Math.PI / 180)
+            slopeHeight: DEFAULT_DEPTH / Math.sin(effectiveSlope * Math.PI / 180) * Math.cos(effectiveSlope * Math.PI / 180)
         });
 
         // 7. Monte Carlo
         const mcResult = monteCarloSimulation({
             cohesion: soil.cohesion.mean,
             frictionAngle: soil.friction.mean,
-            slopeAngle: slopeAngle,
+            slopeAngle: effectiveSlope,
             unitWeight: soil.unitWeight.mean,
             saturation: effectiveSaturation,
             depth: DEFAULT_DEPTH
@@ -962,7 +1023,7 @@ const GeotechnicalEngine = (function () {
         const sensResult = sensitivityAnalysis({
             cohesion: soil.cohesion.mean,
             frictionAngle: soil.friction.mean,
-            slopeAngle: slopeAngle,
+            slopeAngle: effectiveSlope,
             unitWeight: soil.unitWeight.mean,
             saturation: effectiveSaturation,
             depth: DEFAULT_DEPTH
@@ -981,12 +1042,24 @@ const GeotechnicalEngine = (function () {
         if (pastLandslides) riskModifier += 0.2;
         if (construction) riskModifier += 0.1;
         if (idResult.level >= 2) riskModifier += 0.15;
+        riskModifier += antecedentModifier; // Historical rainfall modifier
+
+        // Seismic modifier from live earthquake data
+        var seismicNote = 'No recent seismic activity data';
+        if (liveEarthquakes) {
+            riskModifier += liveEarthquakes.riskModifier || 0;
+            seismicNote = liveEarthquakes.seismicRisk + ' seismic risk (' +
+                liveEarthquakes.totalEvents + ' events, max M' +
+                liveEarthquakes.maxMagnitude.toFixed(1) + ')';
+        }
 
         return {
             timestamp: new Date().toISOString(),
             location: location,
             soilProperties: soil,
-            slopeAngle: slopeAngle,
+            slopeAngle: effectiveSlope,
+            inputSlopeAngle: slopeAngle,
+            demSlope: demSlope,
             effectiveSaturation: effectiveSaturation,
 
             // Analysis Results
@@ -998,6 +1071,9 @@ const GeotechnicalEngine = (function () {
             // Hydrological
             rainfallThreshold: idResult,
             infiltration: infiltrationResult,
+            effectiveRainIntensity: effectiveRainIntensity,
+            effectiveRainDuration: effectiveRainDuration,
+            antecedentRainfallModifier: antecedentModifier,
 
             // Environmental
             vegetation: vegAnalysis,
@@ -1011,12 +1087,24 @@ const GeotechnicalEngine = (function () {
 
             // Risk Modifiers
             riskModifier: riskModifier,
+            seismicNote: seismicNote,
             fieldObservations: {
                 cracks: cracks,
                 seepage: seepage,
                 pastLandslides: pastLandslides,
                 construction: construction
             },
+
+            // Live data sources used
+            dataSourcesUsed: {
+                soilGrids: !!liveSoil,
+                openMeteoWeather: !!liveWeather,
+                openMeteoHistorical: !!liveHistorical,
+                openMeteoElevation: !!liveElevation,
+                usgsEarthquakes: !!liveEarthquakes,
+                nominatimGeocode: !!liveGeocode
+            },
+            elevation: elevation || null,
 
             // Engineering disclaimer
             disclaimer: 'Decision support output only. Final engineering approval required from certified geotechnical engineer per NIDM 2019 guidelines.'

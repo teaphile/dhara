@@ -918,6 +918,295 @@ const DharaCharts = (function () {
     }
 
     // ========================================================================
+    // LIVE DATA CHARTS — Weather, Seismic, Historical Rainfall, Soil
+    // ========================================================================
+
+    /**
+     * Weather Timeline — 24h hourly rain + soil moisture from Open-Meteo
+     */
+    function renderWeatherTimeline(canvasId, weatherData) {
+        destroyChart(canvasId);
+        var ctx = document.getElementById(canvasId);
+        if (!ctx || !weatherData || !weatherData.hourly) return;
+
+        var hourly = weatherData.hourly;
+        var labels = hourly.time.slice(0, 48).map(function(t) {
+            var d = new Date(t);
+            return d.getHours() + ':00';
+        });
+        var rain = hourly.rain ? hourly.rain.slice(0, 48) : [];
+        var moisture = hourly.soilMoisture ? hourly.soilMoisture.slice(0, 48) : [];
+
+        chartInstances[canvasId] = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Rain (mm)',
+                        data: rain,
+                        backgroundColor: 'rgba(33,150,243,0.7)',
+                        borderColor: '#2196F3',
+                        borderWidth: 1,
+                        yAxisID: 'y',
+                        order: 2
+                    },
+                    {
+                        label: 'Soil Moisture (m³/m³)',
+                        data: moisture,
+                        type: 'line',
+                        borderColor: '#4CAF50',
+                        backgroundColor: 'rgba(76,175,80,0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        yAxisID: 'y1',
+                        order: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '48h Weather Timeline (Open-Meteo)',
+                        font: { size: 13, weight: '600' }
+                    },
+                    legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } }
+                },
+                scales: {
+                    y: {
+                        position: 'left',
+                        title: { display: true, text: 'Rain (mm)' },
+                        min: 0,
+                        grid: { color: 'rgba(0,0,0,0.06)' }
+                    },
+                    y1: {
+                        position: 'right',
+                        title: { display: true, text: 'Soil Moisture' },
+                        min: 0,
+                        max: 0.6,
+                        grid: { drawOnChartArea: false }
+                    },
+                    x: {
+                        ticks: { autoSkip: true, maxTicksLimit: 12 },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Seismic Activity Chart — magnitude vs distance scatter from USGS
+     */
+    function renderSeismicChart(canvasId, earthquakeData) {
+        destroyChart(canvasId);
+        var ctx = document.getElementById(canvasId);
+        if (!ctx || !earthquakeData || !earthquakeData.events || earthquakeData.events.length === 0) return;
+
+        var events = earthquakeData.events.slice(0, 50);
+        var scatterData = events.map(function(e) {
+            return { x: e.distance, y: e.magnitude, r: Math.max(3, e.magnitude * 3) };
+        });
+
+        var colors = events.map(function(e) {
+            if (e.magnitude >= 5) return 'rgba(244,67,54,0.8)';
+            if (e.magnitude >= 4) return 'rgba(255,152,0,0.8)';
+            if (e.magnitude >= 3) return 'rgba(255,235,59,0.8)';
+            return 'rgba(76,175,80,0.8)';
+        });
+
+        chartInstances[canvasId] = new Chart(ctx, {
+            type: 'bubble',
+            data: {
+                datasets: [{
+                    label: 'Earthquakes (1yr)',
+                    data: scatterData,
+                    backgroundColor: colors,
+                    borderColor: colors.map(function(c) { return c.replace('0.8', '1'); }),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Seismic Activity — Magnitude vs Distance (USGS)',
+                        font: { size: 13, weight: '600' }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(c) {
+                                var e = events[c.dataIndex];
+                                return 'M' + e.magnitude.toFixed(1) + ' | ' + e.distance.toFixed(0) + 'km | ' + (e.place || '');
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Distance (km)' },
+                        min: 0,
+                        grid: { color: 'rgba(0,0,0,0.06)' }
+                    },
+                    y: {
+                        title: { display: true, text: 'Magnitude' },
+                        min: 0,
+                        grid: { color: 'rgba(0,0,0,0.06)' }
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Historical Rainfall Chart — 90 days daily rain from Open-Meteo Archive
+     */
+    function renderHistoricalRainfall(canvasId, historicalData) {
+        destroyChart(canvasId);
+        var ctx = document.getElementById(canvasId);
+        if (!ctx || !historicalData) return;
+
+        var labels = historicalData.dates || [];
+        var rain = historicalData.dailyRain || [];
+        var cumulative = [];
+        var sum = 0;
+        for (var i = 0; i < rain.length; i++) {
+            sum += rain[i] || 0;
+            cumulative.push(sum);
+        }
+
+        // Highlight extreme days
+        var avgRain = sum / rain.length;
+        var barColors = rain.map(function(r) {
+            if (r > avgRain * 3) return 'rgba(244,67,54,0.8)';
+            if (r > avgRain * 2) return 'rgba(255,152,0,0.8)';
+            if (r > avgRain) return 'rgba(33,150,243,0.8)';
+            return 'rgba(33,150,243,0.4)';
+        });
+
+        chartInstances[canvasId] = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels.map(function(d) {
+                    return d.substring(5); // Show MM-DD
+                }),
+                datasets: [
+                    {
+                        label: 'Daily Rain (mm)',
+                        data: rain,
+                        backgroundColor: barColors,
+                        borderWidth: 0,
+                        yAxisID: 'y',
+                        order: 2
+                    },
+                    {
+                        label: 'Cumulative (mm)',
+                        data: cumulative,
+                        type: 'line',
+                        borderColor: '#E91E63',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        yAxisID: 'y1',
+                        order: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '90-Day Historical Rainfall (Open-Meteo Archive)',
+                        font: { size: 13, weight: '600' }
+                    },
+                    legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } }
+                },
+                scales: {
+                    y: {
+                        position: 'left',
+                        title: { display: true, text: 'Daily Rain (mm)' },
+                        min: 0,
+                        grid: { color: 'rgba(0,0,0,0.06)' }
+                    },
+                    y1: {
+                        position: 'right',
+                        title: { display: true, text: 'Cumulative (mm)' },
+                        min: 0,
+                        grid: { drawOnChartArea: false }
+                    },
+                    x: {
+                        ticks: { autoSkip: true, maxTicksLimit: 15 },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Soil Composition — doughnut chart from SoilGrids data
+     */
+    function renderSoilComposition(canvasId, soilData) {
+        destroyChart(canvasId);
+        var ctx = document.getElementById(canvasId);
+        if (!ctx || !soilData || !soilData.composition) return;
+
+        var comp = soilData.composition;
+
+        chartInstances[canvasId] = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Clay (' + comp.clay + '%)', 'Sand (' + comp.sand + '%)', 'Silt (' + comp.silt + '%)'],
+                datasets: [{
+                    data: [comp.clay, comp.sand, comp.silt],
+                    backgroundColor: [
+                        'rgba(198,40,40,0.85)',
+                        'rgba(255,193,7,0.85)',
+                        'rgba(33,150,243,0.85)'
+                    ],
+                    borderColor: ['#C62828', '#FFC107', '#2196F3'],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Soil Composition — ' + soilData.classification.usda + ' (SoilGrids)',
+                        font: { size: 13, weight: '600' }
+                    },
+                    legend: {
+                        position: 'bottom',
+                        labels: { usePointStyle: true, boxWidth: 10, font: { size: 11 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            afterBody: function() {
+                                return 'pH: ' + soilData.properties.pH +
+                                    '\nBulk Density: ' + soilData.properties.bulkDensity + ' g/cm³' +
+                                    '\nOrganic C: ' + soilData.properties.organicCarbon + ' g/kg';
+                            }
+                        }
+                    }
+                },
+                cutout: '55%'
+            }
+        });
+    }
+
+    // ========================================================================
     // PUBLIC API
     // ========================================================================
     return {
@@ -935,6 +1224,11 @@ const DharaCharts = (function () {
         renderSoilBar,
         renderWeightPie,
         renderFosSlopeCurve,
+        // Live Data charts
+        renderWeatherTimeline,
+        renderSeismicChart,
+        renderHistoricalRainfall,
+        renderSoilComposition,
         destroyChart
     };
 })();

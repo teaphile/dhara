@@ -20,11 +20,18 @@
     <!-- Favicon (inline SVG — no external file needed) -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏔️</text></svg>">
 
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
     <!-- Preconnect for faster CDN loading -->
     <link rel="preconnect" href="https://unpkg.com" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://api.open-meteo.com" crossorigin>
+    <link rel="preconnect" href="https://earthquake.usgs.gov" crossorigin>
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -113,6 +120,26 @@
                 <p>Set location on map (click or drag marker), then enter geotechnical parameters.</p>
             </div>
 
+            <!-- LIVE DATA STATUS BAR -->
+            <div id="api-status-bar" class="api-status-bar">
+                <span class="api-status-label">Live Data:</span>
+                <span class="api-dot" id="dot-weather" title="Weather">Weather</span>
+                <span class="api-dot" id="dot-elevation" title="Elevation">Elevation</span>
+                <span class="api-dot" id="dot-earthquake" title="Earthquakes">Seismic</span>
+                <span class="api-dot" id="dot-soilgrids" title="Soil Data">Soil</span>
+                <span class="api-dot" id="dot-geocode" title="Location">Geocode</span>
+                <span class="api-dot" id="dot-historical" title="Historical">Rainfall</span>
+                <span id="api-fetch-time" class="api-fetch-time"></span>
+            </div>
+
+            <!-- LIVE LOCATION & WEATHER BANNER -->
+            <div id="live-location-banner" class="live-banner" style="display:none">
+                <div class="live-badge">LIVE</div>
+                <div id="live-location-name" class="live-location"></div>
+                <div id="live-weather-summary" class="live-weather"></div>
+                <div id="live-elevation" class="live-elev"></div>
+            </div>
+
             <div class="grid-2">
                 <!-- LEFT: MAP -->
                 <div class="card" style="min-height:420px">
@@ -161,6 +188,11 @@
                                 <span id="inp-veg-val" class="range-val">40%</span>
                             </div>
                             <button class="btn btn-sm btn-accent" onclick="DharaApp.fetchSatelliteGreen()" style="margin-top:4px;font-size:0.72rem">Fetch from Satellite View</button>
+                        </div>
+                        <!-- Live Soil Data Indicator -->
+                        <div class="form-group">
+                            <label>Live Soil Data <span id="soil-live-badge" class="live-micro-badge" style="display:none">LIVE</span></label>
+                            <div id="live-soil-info" class="live-soil-box">Click map to fetch real soil data from ISRIC SoilGrids...</div>
                         </div>
                         <!-- Rainfall -->
                         <div class="form-group">
@@ -213,7 +245,8 @@
                             </div>
                         </div>
                     </div>
-                    <div style="margin-top:18px;text-align:right">
+                    <div style="margin-top:18px;display:flex;gap:12px;justify-content:flex-end;align-items:center">
+                        <button class="btn btn-secondary" onclick="DharaApp.fetchLiveData()" id="btn-fetch-live">Fetch Live Data</button>
                         <button class="btn btn-primary btn-lg" onclick="DharaApp.runAnalysis()">Run Full Analysis</button>
                     </div>
                 </div>
@@ -308,6 +341,33 @@
                 <div class="chart-container"><canvas id="chart-infiltration"></canvas></div>
             </div>
 
+            <!-- LIVE DATA PANELS (filled dynamically) -->
+            <div id="live-data-panels" style="display:none">
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header"><h3>Live Weather <span class="live-micro-badge">LIVE</span></h3></div>
+                        <div id="live-weather-detail"></div>
+                        <div class="chart-container" style="height:250px"><canvas id="chart-weather-timeline"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3>Seismic Activity <span class="live-micro-badge">LIVE</span></h3></div>
+                        <div id="live-earthquake-detail"></div>
+                        <div class="chart-container" style="height:250px"><canvas id="chart-seismic"></canvas></div>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header"><h3>Historical Rainfall (30 Days) <span class="live-micro-badge">LIVE</span></h3></div>
+                        <div class="chart-container" style="height:250px"><canvas id="chart-historical-rain"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3>Soil Composition (SoilGrids) <span class="live-micro-badge">LIVE</span></h3></div>
+                        <div id="live-soil-detail"></div>
+                        <div class="chart-container" style="height:250px"><canvas id="chart-soil-composition"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Detail Tables -->
             <div class="grid-2">
                 <div class="card">
@@ -334,6 +394,10 @@
                 </table>
             </div>
         </section>
+
+        <!-- ============================================================ -->
+        <!-- PAGE 2B: LIVE WEATHER & SEISMIC PANELS (injected into results) -->
+        <!-- ============================================================ -->
 
         <!-- ============================================================ -->
         <!-- PAGE 3 : RISK MAP (1 km Radius)                             -->
@@ -481,6 +545,7 @@
     </main>
 
     <!-- JS Modules (order matters) -->
+    <script src="js/api-service.js"></script>
     <script src="js/geotechnical-engine.js"></script>
     <script src="js/risk-classifier.js"></script>
     <script src="js/mitigation-engine.js"></script>
@@ -489,5 +554,12 @@
     <script src="js/voice-system.js"></script>
     <script src="js/report-generator.js"></script>
     <script src="js/app.js"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(function() {});
+        }
+    </script>
 </body>
 </html>

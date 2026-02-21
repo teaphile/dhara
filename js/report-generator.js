@@ -280,6 +280,12 @@ const ReportGenerator = (function () {
         </table>
     </div>
 
+    <!-- 11. LIVE DATA SOURCES -->
+    <div class="section">
+        <h2>11. Live Data Sources</h2>
+        ${renderLiveDataSources(analysisResults)}
+    </div>
+
     <!-- DISCLAIMER -->
     <div class="disclaimer">
         <strong>Engineering Disclaimer</strong><br>
@@ -323,6 +329,41 @@ const ReportGenerator = (function () {
             html += `<tr><td>${key.charAt(0).toUpperCase() + key.slice(1)}</td><td>${val.score}</td><td>${(val.weight*100).toFixed(0)}%</td><td>${val.weighted}</td><td>${val.input}</td></tr>`;
         }
         html += '</table>';
+        return html;
+    }
+
+    function renderLiveDataSources(analysisResults) {
+        var ds = analysisResults.dataSourcesUsed;
+        if (!ds) return '<p>No live data sources were used for this analysis. All parameters from user input and IS code database.</p>';
+
+        var sources = [
+            { name: 'Open-Meteo Weather API', used: ds.openMeteoWeather, url: 'https://open-meteo.com/', desc: 'Real-time temperature, humidity, rainfall, wind, soil moisture' },
+            { name: 'Open-Meteo Historical Archive', used: ds.openMeteoHistorical, url: 'https://open-meteo.com/', desc: '90-day antecedent rainfall analysis' },
+            { name: 'Open-Meteo Elevation API', used: ds.openMeteoElevation, url: 'https://open-meteo.com/', desc: 'DEM-based elevation and slope estimation' },
+            { name: 'USGS Earthquake Hazards', used: ds.usgsEarthquakes, url: 'https://earthquake.usgs.gov/', desc: 'Seismic events within 300km radius (past 1 year)' },
+            { name: 'ISRIC SoilGrids v2.0', used: ds.soilGrids, url: 'https://soilgrids.org/', desc: 'Real soil composition (clay%, sand%, pH, bulk density) at 250m resolution' },
+            { name: 'Nominatim/OpenStreetMap', used: ds.nominatimGeocode, url: 'https://nominatim.openstreetmap.org/', desc: 'Reverse geocoding for location identification' }
+        ];
+
+        var html = '<table><tr><th>Data Source</th><th>Status</th><th>Description</th></tr>';
+        for (var i = 0; i < sources.length; i++) {
+            var s = sources[i];
+            html += '<tr><td><a href="' + s.url + '" target="_blank">' + s.name + '</a></td>' +
+                '<td style="color:' + (s.used ? '#2E7D32' : '#999') + ';font-weight:600">' + (s.used ? '✓ USED' : '✗ NOT AVAILABLE') + '</td>' +
+                '<td>' + s.desc + '</td></tr>';
+        }
+        html += '</table>';
+
+        if (analysisResults.elevation) {
+            html += '<p style="margin-top:8px;font-size:11px">Elevation: <strong>' + analysisResults.elevation + 'm</strong>';
+            if (analysisResults.locationName) html += ' | Location: <strong>' + analysisResults.locationName + '</strong>';
+            html += '</p>';
+        }
+        if (analysisResults.seismicNote) {
+            html += '<p style="font-size:11px">Seismic: ' + analysisResults.seismicNote + '</p>';
+        }
+
+        html += '<p style="font-size:10px;color:#888;margin-top:8px"><em>All APIs are free, open-access, and require no API keys. Data freshness depends on API availability at analysis time.</em></p>';
         return html;
     }
 

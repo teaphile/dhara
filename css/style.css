@@ -474,6 +474,151 @@ select.form-control { cursor: pointer; }
 /* ---- MAP COORDINATES ---- */
 .map-coords label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
 
+/* ---- API STATUS BAR ---- */
+.api-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+    flex-wrap: wrap;
+}
+.api-status-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.api-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: #F1F5F9;
+    color: var(--text-muted);
+    transition: all 0.3s;
+}
+.api-dot::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #CBD5E1;
+    transition: background 0.3s;
+}
+.api-dot.loading { background: #FFF8E1; color: #F57F17; }
+.api-dot.loading::before { background: #F57F17; animation: pulse 1s infinite; }
+.api-dot.success { background: #E8F5E9; color: #2E7D32; }
+.api-dot.success::before { background: #4CAF50; }
+.api-dot.error { background: #FFEBEE; color: #D32F2F; }
+.api-dot.error::before { background: #F44336; }
+.api-fetch-time { font-size: 10px; color: var(--text-muted); margin-left: auto; }
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* ---- LIVE BANNER ---- */
+.live-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 20px;
+    background: linear-gradient(135deg, #E3F2FD 0%, #F3E5F5 100%);
+    border: 1px solid #BBDEFB;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: #F44336;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    animation: pulse 2s infinite;
+}
+.live-badge::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fff;
+}
+.live-location {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary-dark);
+    flex: 1;
+    min-width: 200px;
+}
+.live-weather {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.live-elev {
+    font-size: 12px;
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.live-micro-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: #F44336;
+    color: #fff;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+    margin-left: 6px;
+    animation: pulse 2s infinite;
+}
+
+.live-soil-box {
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 6px 10px;
+    background: #F8FAFC;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    min-height: 36px;
+    line-height: 1.5;
+}
+
+/* ---- EARTHQUAKE TABLE ---- */
+.eq-table { font-size: 11px; }
+.eq-table th { font-size: 10px; padding: 6px 8px; }
+.eq-table td { padding: 5px 8px; font-size: 11px; }
+
+/* ---- SEISMIC RISK BADGE ---- */
+.seismic-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+}
+.seismic-low { background: #E8F5E9; color: #1B5E20; }
+.seismic-moderate { background: #FFF3E0; color: #E65100; }
+.seismic-high { background: #FFEBEE; color: #B71C1C; }
+
 /* ---- RESPONSIVE ---- */
 @media (max-width: 1200px) {
     .grid-4 { grid-template-columns: repeat(2, 1fr); }
